@@ -8,17 +8,22 @@ import { LocationProvider, useLocation } from './contexts/LocationContext'
 function AppContent() {
   const { location, setLocation } = useLocation()
 
-  return (
-    <>
-      {!location && <LocationPrompt onLocationSet={setLocation} />}
-      <div className="min-h-screen bg-gray-50">
-        <Navbar />
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/admin" element={<AdminPage />} />
-        </Routes>
+  if (!location) {
+    return (
+      <div className="bg-canvas min-h-screen">
+        <LocationPrompt onLocationSet={setLocation} />
       </div>
-    </>
+    )
+  }
+
+  return (
+    <div className="bg-canvas min-h-screen">
+      <Navbar />
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/admin" element={<AdminPage />} />
+      </Routes>
+    </div>
   )
 }
 

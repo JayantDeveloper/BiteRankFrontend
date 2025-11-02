@@ -9,20 +9,16 @@ function LocationPrompt({ onLocationSet }) {
     if (!loc || loc.trim().length < 2) {
       return 'Please enter a valid location'
     }
-    // Check if it's a ZIP code (5 digits) or a city name (at least 2 characters)
     const zipPattern = /^\d{5}(-\d{4})?$/
     const cityPattern = /^[a-zA-Z\s,.-]+$/
-
     if (!zipPattern.test(loc.trim()) && !cityPattern.test(loc.trim())) {
       return 'Please enter a valid ZIP code or city name'
     }
-
     return null
   }
 
   const reverseGeocode = async (latitude, longitude) => {
     try {
-      // Using Nominatim (OpenStreetMap) for free geocoding
       const response = await fetch(
         `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10&addressdetails=1`,
         {
@@ -37,11 +33,8 @@ function LocationPrompt({ onLocationSet }) {
       }
 
       const data = await response.json()
-
-      // Extract the most relevant location info
       const address = data.address || {}
 
-      // Prefer ZIP code if available, otherwise use city and state
       if (address.postcode) {
         return address.postcode
       } else if (address.city && address.state) {
@@ -51,7 +44,6 @@ function LocationPrompt({ onLocationSet }) {
       } else if (address.county && address.state) {
         return `${address.county}, ${address.state}`
       } else {
-        // Fallback to display name
         return data.display_name.split(',').slice(0, 2).join(',').trim()
       }
     } catch (err) {
@@ -100,7 +92,7 @@ function LocationPrompt({ onLocationSet }) {
       {
         enableHighAccuracy: false,
         timeout: 10000,
-        maximumAge: 300000, // Cache for 5 minutes
+        maximumAge: 300000,
       }
     )
   }
@@ -119,30 +111,18 @@ function LocationPrompt({ onLocationSet }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-95 flex items-center justify-center z-50 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl border-3 border-[#ffb8a8] p-8 max-w-md w-full mx-4 shadow-2xl shadow-[#b45343]/20">
-        <div className="text-center mb-8">
-          <div className="mb-4 flex items-center justify-center">
-            <img
-              src="/assets/BiteRankLogo.png"
-              alt="BiteRank"
-              className="h-16 w-auto"
-            />
-            <span className="ml-2 text-xs font-bold text-white bg-gradient-to-r from-[#FFC107] to-[#FFD54F] px-2 py-1 rounded-full shadow-md">
-              AI
-            </span>
-          </div>
-          <h2 className="text-2xl font-bold text-[#2d1f1c] mb-2">
-            Welcome!
-          </h2>
-          <p className="text-[#6b5b58]">
-            Enter your location to find the best food deals near you
+    <div className="min-h-screen bg-canvas flex items-center justify-center px-6 py-16">
+      <div className="surface-card max-w-lg w-full mx-auto p-10">
+        <div className="text-center mb-10">
+          <h1 className="text-4xl font-extrabold mb-3 gradient-text">DealScout</h1>
+          <p className="text-slate-300">
+            Tell us where you are so we can fetch local prices from Uber Eats and other delivery services.
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label className="block text-sm font-bold text-[#6b5b58] mb-2 uppercase tracking-wide">
+            <label className="block text-xs font-bold section-title mb-2">
               Your Location
             </label>
             <input
@@ -152,9 +132,11 @@ function LocationPrompt({ onLocationSet }) {
                 setLocation(e.target.value)
                 setError('')
               }}
-              className={`block w-full px-4 py-4 bg-[#fff5f0] border-2 ${
-                error ? 'border-red-500' : 'border-[#ffb8a8]'
-              } rounded-lg text-[#2d1f1c] placeholder-[#9d8d8a] focus:border-[#b45343] focus:ring-2 focus:ring-[#b45343] focus:ring-opacity-30 transition-all text-lg`}
+              className={`block w-full px-4 py-4 bg-black/25 border ${
+                error
+                  ? 'border-red-500/70 focus:border-red-400 focus:ring-red-500/30'
+                  : 'border-slate-700/50 focus:border-[#ff6b35] focus:ring-[#ff6b35]/35'
+              } rounded-lg text-slate-100 placeholder-slate-500 transition-all text-lg focus:ring-2`}
               placeholder="e.g., 20742 or College Park, MD"
               autoFocus
             />
@@ -166,7 +148,7 @@ function LocationPrompt({ onLocationSet }) {
                 {error}
               </p>
             )}
-            <p className="mt-2 text-xs text-[#9d8d8a] flex items-center">
+            <p className="mt-2 text-xs text-slate-400 flex items-center">
               <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
               </svg>
@@ -179,7 +161,7 @@ function LocationPrompt({ onLocationSet }) {
               type="button"
               onClick={handleUseCurrentLocation}
               disabled={isGettingLocation}
-              className="w-full bg-white border-2 border-[#ffb8a8] text-[#b45343] px-8 py-4 rounded-lg font-bold text-lg hover:bg-[#fff5f0] hover:border-[#b45343] hover:shadow-lg hover:shadow-[#b45343]/20 transition-all duration-300 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full surface-soft border border-slate-600 px-8 py-4 rounded-lg font-bold text-lg text-slate-200 hover:border-[#ff6b35] hover:shadow-lg hover:shadow-[#ff6b35]/30 transition-all duration-300 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isGettingLocation ? (
                 <>
@@ -202,16 +184,16 @@ function LocationPrompt({ onLocationSet }) {
 
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-800"></div>
+                <div className="w-full border-t border-slate-700/40"></div>
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-white px-2 text-[#9d8d8a]">Or</span>
+                <span className="bg-transparent px-2 text-slate-500">Or</span>
               </div>
             </div>
 
             <button
               type="submit"
-              className="w-full btn-gradient-primary text-white px-8 py-4 rounded-lg font-bold text-lg btn-glow hover:shadow-lg hover:shadow-[#b45343]/50 transition-all duration-300 flex items-center justify-center space-x-2"
+              className="w-full btn-gradient-primary text-white px-8 py-4 rounded-lg font-bold text-lg btn-glow hover:shadow-lg hover:shadow-[#ff6b35]/60 transition-all duration-300 flex items-center justify-center space-x-2"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -221,9 +203,9 @@ function LocationPrompt({ onLocationSet }) {
           </div>
         </form>
 
-        <div className="mt-6 text-center">
-          <p className="text-xs text-[#9d8d8a]">
-            Your location is only used to fetch accurate pricing and is stored locally in your browser
+        <div className="mt-8 text-center">
+          <p className="text-xs text-slate-500">
+            Your location is stored locally so we can fetch prices nearby. You can update it anytime from the header.
           </p>
         </div>
       </div>
