@@ -11,7 +11,7 @@ function Navbar() {
   }
 
   return (
-    <nav className="bg-white/95 border-b-3 border-[#ffb8a8] sticky top-0 z-50 backdrop-blur-md shadow-md shadow-[#b45343]/10">
+    <nav className="sticky top-0 z-50 shadow-lg shadow-[#c4423b]/25" style={{ background: 'linear-gradient(135deg, #DC5F54, #c94e45)' }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           <div className="flex items-center">
@@ -19,18 +19,15 @@ function Navbar() {
               <img
                 src="/assets/BiteRankLogo.png"
                 alt="BiteRank"
-                className="h-10 w-auto transition-transform duration-300 group-hover:scale-105"
+                className="h-14 w-auto transition-transform duration-300 group-hover:scale-105"
               />
-              <span className="ml-2 text-xs font-bold text-white bg-gradient-to-r from-[#FFC107] to-[#FFD54F] px-2 py-1 rounded-full shadow-md">
-                AI
-              </span>
             </Link>
           </div>
           <div className="flex items-center space-x-4">
             {location && (
               <button
                 onClick={handleChangeLocation}
-                className="flex items-center text-[#6b5b58] hover:text-[#b45343] px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:bg-[#fff5f3]"
+                className="flex items-center text-white/90 hover:text-white px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 hover:bg-white/10"
                 title="Change location"
               >
                 <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
@@ -44,13 +41,14 @@ function Navbar() {
             )}
             <Link
               to="/"
-              className="text-[#6b5b58] hover:text-[#b45343] px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:bg-[#fff5f3]"
+              className="text-white/90 hover:text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 hover:bg-white/10"
             >
               Home
             </Link>
             <Link
               to="/admin"
-              className="relative btn-gradient-primary text-white px-6 py-2 rounded-lg text-sm font-bold btn-glow overflow-hidden hover:shadow-lg hover:shadow-[#b45343]/50 transition-all duration-300"
+              className="relative text-[#1f1204] px-6 py-2 rounded-lg text-sm font-bold btn-glow overflow-hidden transition-all duration-300"
+              style={{ background: 'linear-gradient(135deg, #F4B942, #FF9B54)', boxShadow: '0 12px 32px rgba(0,0,0,0.18)' }}
             >
               Admin
             </Link>

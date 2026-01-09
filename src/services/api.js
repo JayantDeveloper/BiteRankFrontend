@@ -1,26 +1,27 @@
-import axios from 'axios'
+import axios from "axios";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
-})
+});
 
 export const dealsAPI = {
   // Get all deals
-  getDeals: (params = {}) => api.get('/deals', { params }),
+  getDeals: (params = {}) => api.get("/deals", { params }),
 
   // Get top deals
-  getTopDeals: (limit = 10) => api.get('/deals/top', { params: { limit } }),
+  getTopDeals: (limit = 10) => api.get("/deals/top", { params: { limit } }),
 
   // Get single deal
   getDeal: (id) => api.get(`/deals/${id}`),
 
   // Create deal
-  createDeal: (dealData) => api.post('/deals', dealData),
+  createDeal: (dealData) => api.post("/deals", dealData),
 
   // Update deal
   updateDeal: (id, dealData) => api.put(`/deals/${id}`, dealData),
@@ -32,18 +33,23 @@ export const dealsAPI = {
   rankDeal: (id) => api.post(`/deals/${id}/rank`),
 
   // Rank all deals
-  rankAllDeals: () => api.post('/deals/rank-all'),
+  rankAllDeals: () => api.post("/deals/rank-all"),
 
   // Import and auto-rank menu items from supported restaurant websites
-  importScrapedMenus: (params = {}) => api.post('/scrape/import', null, { params }),
+  importScrapedMenus: (params = {}) =>
+    api.post("/scrape/import", null, { params }),
 
-  importUberEatsMenus: (payload) => api.post('/scrape/ubereats', payload),
+  importUberEatsMenus: (payload) => api.post("/scrape/ubereats", payload),
+  getUberEatsJob: (jobId) => api.get(`/scrape/ubereats/jobs/${jobId}`),
+
+  suggestLocations: (query, limit = 5) =>
+    api.get("/locations/suggest", { params: { query, limit } }),
 
   // Get restaurants
-  getRestaurants: () => api.get('/restaurants'),
+  getRestaurants: () => api.get("/restaurants"),
 
   // Get categories
-  getCategories: () => api.get('/categories'),
-}
+  getCategories: () => api.get("/categories"),
+};
 
-export default api
+export default api;

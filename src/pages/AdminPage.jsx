@@ -2,23 +2,23 @@ import { useState, useEffect, useMemo } from 'react'
 import { dealsAPI } from '../services/api'
 import { useLocation } from '../contexts/LocationContext'
 
-function AdminPage() {
+function AdminPage({ onLogout }) {
   const { location: userLocation } = useLocation()
   const [deals, setDeals] = useState([])
   const [loading, setLoading] = useState(true)
-  const [ranking, setRanking] = useState(false)
-  const [importing, setImporting] = useState(false)
   const [importingUber, setImportingUber] = useState(false)
+  const [dealSort, setDealSort] = useState('value_desc')
+  const [jobProgress, setJobProgress] = useState({
+    show: false,
+    completed: 0,
+    total: 0,
+    status: 'queued',
+  })
   const supportedUberRestaurants = useMemo(
     () => [
       "McDonald's",
       'KFC',
       'Taco Bell',
-      "Wendy's",
-      'Burger King',
-      'Chick-fil-A',
-      'Subway',
-      'Popeyes',
     ],
     []
   )
@@ -41,7 +41,7 @@ function AdminPage() {
   const loadDeals = async () => {
     try {
       setLoading(true)
-      const response = await dealsAPI.getDeals({ active_only: false, limit: 100 })
+      const response = await dealsAPI.getDeals({ active_only: false, limit: 500 })
       setDeals(Array.isArray(response.data) ? response.data : [])
     } catch (err) {
       console.error('Failed to load deals:', err)
@@ -98,54 +98,27 @@ function AdminPage() {
     }
   }
 
-  const handleDelete = async (id) => {
-    if (!confirm('Are you sure you want to delete this deal?')) return
-    try {
-      await dealsAPI.deleteDeal(id)
-      alert('Deal deleted successfully!')
-      loadDeals()
-    } catch (err) {
-      console.error('Failed to delete deal:', err)
-      alert('Failed to delete deal')
+  const pollUberJob = async (jobId, { intervalMs = 2000, maxAttempts = 120 } = {}) => {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const res = await dealsAPI.getUberEatsJob(jobId)
+      const data = res?.data ?? {}
+      const prog = data.progress || {}
+      const total = prog.total_stores || 0
+      const done = (prog.completed || 0) + (prog.failed || 0)
+      setJobProgress((prev) => ({
+        ...prev,
+        show: true,
+        completed: done,
+        total: total || prev.total || supportedUberRestaurants.length,
+        status: data.status || prev.status,
+      }))
+      if (!data.status || data.status === 'running' || data.status === 'queued') {
+        await new Promise((r) => setTimeout(r, intervalMs))
+        continue
+      }
+      return data
     }
-  }
-
-  const handleRankAll = async () => {
-    if (!confirm('This will re-rank all deals using AI. Continue?')) return
-    try {
-      setRanking(true)
-      const response = await dealsAPI.rankAllDeals()
-      const results = Array.isArray(response.data) ? response.data : []
-      const successful = results.filter(r => r?.success).length
-      alert(`Successfully ranked ${successful} out of ${results.length} deals`)
-      loadDeals()
-    } catch (err) {
-      console.error('Failed to rank deals:', err)
-      alert('Failed to rank deals')
-    } finally {
-      setRanking(false)
-    }
-  }
-
-  const handleImportMenus = async () => {
-    if (importing) return
-    if (!confirm('Scrape supported menus and auto-rank the results?')) return
-
-    try {
-      setImporting(true)
-      const response = await dealsAPI.importScrapedMenus({ auto_rank: true })
-      const data = response?.data ?? {}
-      const { created = 0, updated = 0, ranked = 0, skipped = [] } = data
-      alert(
-        `Import complete.\nCreated: ${created}\nUpdated: ${updated}\nRanked: ${ranked}\nSkipped: ${skipped.length}`
-      )
-      loadDeals()
-    } catch (err) {
-      console.error('Failed to import menus:', err)
-      alert('Failed to import menus')
-    } finally {
-      setImporting(false)
-    }
+    throw new Error('Timed out waiting for Uber Eats job to finish')
   }
 
   const handleUberEatsImport = async () => {
@@ -170,10 +143,26 @@ function AdminPage() {
         restaurants: supportedUberRestaurants,
       }
       const response = await dealsAPI.importUberEatsMenus(payload)
-      const data = response?.data ?? {}
-      const { created = 0, updated = 0, ranked = 0, skipped = [] } = data
+      const jobId = response?.data?.job_id
+      if (!jobId) throw new Error('Job not started')
+
+      setJobProgress({ show: true, completed: 0, total: supportedUberRestaurants.length, status: 'queued' })
+
+      const jobResult = await pollUberJob(jobId)
+      const result = jobResult?.result || {}
+      const ranked = Array.isArray(result.ranked_deals) ? result.ranked_deals.length : result.ranked || 0
+      const skipped = Array.isArray(result.unranked_deals) ? result.unranked_deals.length : 0
+      const metadata = result.metadata || {}
+      const storesAttempted = metadata.stores_attempted || (jobResult?.progress?.total_stores ?? 0)
+      const progress = jobResult?.progress || {}
+      const completedStores = progress.completed || 0
+      const failedStores = progress.failed || 0
+      const totalStores = progress.total_stores || storesAttempted || supportedUberRestaurants.length
+      const inferredStatus =
+        completedStores === totalStores && failedStores === 0 ? 'completed' : jobResult.status || 'unknown'
+
       alert(
-        `Uber Eats import complete.\nCreated: ${created}\nUpdated: ${updated}\nRanked: ${ranked}\nSkipped: ${skipped.length}`
+        `Uber Eats import ${inferredStatus}.\nStores attempted: ${totalStores}\nCompleted: ${completedStores}\nFailed: ${failedStores}\nRanked deals: ${ranked}\nUnranked: ${skipped}`
       )
       loadDeals()
     } catch (err) {
@@ -181,17 +170,7 @@ function AdminPage() {
       alert('Failed to import Uber Eats menus')
     } finally {
       setImportingUber(false)
-    }
-  }
-
-  const handleRankOne = async (id) => {
-    try {
-      await dealsAPI.rankDeal(id)
-      alert('Deal ranked successfully!')
-      loadDeals()
-    } catch (err) {
-      console.error('Failed to rank deal:', err)
-      alert('Failed to rank deal')
+      setJobProgress({ show: false, completed: 0, total: 0, status: 'done' })
     }
   }
 
@@ -205,14 +184,48 @@ function AdminPage() {
     return n.toFixed(digits)
   }
 
+  const sortedDeals = [...deals].sort((a, b) => {
+    switch (dealSort) {
+      case 'restaurant_asc':
+        return (a.restaurant_name || '').localeCompare(b.restaurant_name || '')
+      case 'price_asc':
+        return (a.price || 0) - (b.price || 0)
+      case 'value_desc':
+      default:
+        return (b.value_score || 0) - (a.value_score || 0)
+    }
+  })
+
   return (
     <div className="min-h-screen bg-black">
+      {jobProgress.show && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-[#1a0f0d] border border-[#b45343]/40 rounded-xl p-6 w-full max-w-md shadow-xl">
+            <h3 className="text-xl font-bold text-white mb-4 flex items-center space-x-2">
+              <span className="w-2 h-2 rounded-full bg-[#b45343] animate-pulse"></span>
+              <span>Scraping Uber Eats</span>
+            </h3>
+            <p className="text-gray-300 mb-3">
+              Status: {jobProgress.status} — {jobProgress.completed}/{jobProgress.total || supportedUberRestaurants.length} stores
+            </p>
+            <div className="w-full progress-shell h-3 overflow-hidden">
+              <div
+                className="h-3 progress-animated transition-all"
+                style={{
+                  width: `${(jobProgress.total || supportedUberRestaurants.length) ? Math.min(100, Math.round((jobProgress.completed / (jobProgress.total || supportedUberRestaurants.length)) * 100)) : 10}%`,
+                }}
+              ></div>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="mb-12">
           <h1 className="text-4xl font-black text-white mb-2">
             Admin <span className="gradient-text">Panel</span>
           </h1>
-          <p className="text-gray-400">Manage deals and AI rankings</p>
+          <p className="text-gray-400">Manually add deals or import Uber Eats menus</p>
+        </div>
 
         {/* Add Deal Form */}
         <div className="bg-[#1a0f0d] rounded-xl border border-gray-900 p-8 mb-8 hover:border-[#b45343] hover:border-opacity-30 transition-all duration-300">
@@ -368,7 +381,7 @@ function AdminPage() {
           </form>
         </div>
 
-        {/* Automation Buttons */}
+        {/* Uber Eats Import (kept) */}
         <div className="mb-8 space-y-4">
           <div className="bg-black border border-gray-800 rounded-lg p-4 flex items-center justify-between mb-4">
             <div className="flex items-center">
@@ -387,85 +400,62 @@ function AdminPage() {
             </p>
           </div>
 
-        <div className="bg-[#1a0f0d] rounded-xl border border-gray-900 p-6">
-          <h3 className="text-xl font-bold text-white mb-4 flex items-center">
-            <svg className="w-5 h-5 mr-2 text-[#b45343]" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-            </svg>
-            Uber Eats Import
-          </h3>
-
-          <p className="text-gray-400 mb-4">
-            DealScout uses your saved location to find the nearest Uber Eats stores for each supported chain,
-            then imports menu pricing and nutrition automatically. No manual URLs needed.
-          </p>
-
-          <div className="bg-black border border-gray-800 rounded-lg p-4">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-              Chains imported automatically
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {supportedUberRestaurants.map((restaurant) => (
-                <span
-                  key={restaurant}
-                  className="inline-flex items-center px-3 py-1.5 rounded-full bg-[#1a0f0d] border border-gray-800 text-sm text-gray-300"
-                >
-                  {restaurant}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          {!userLocation && (
-            <p className="mt-4 text-sm text-yellow-400 flex items-start">
-              <svg className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.72-1.36 3.485 0l6.518 11.594c.75 1.335-.213 3.007-1.742 3.007H3.48c-1.53 0-2.492-1.672-1.742-3.007L8.257 3.1zM11 13a1 1 0 10-2 0 1 1 0 002 0zm-.25-6.75a.75.75 0 00-1.5 0v4a.75.75 0 001.5 0v-4z" clipRule="evenodd" />
+          <div className="bg-[#1a0f0d] rounded-xl border border-gray-900 p-6">
+            <h3 className="text-xl font-bold text-white mb-4 flex items-center">
+              <svg className="w-5 h-5 mr-2 text-[#b45343]" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
               </svg>
-              Set your location from the welcome prompt first so we know which market to query.
+              Uber Eats Import
+            </h3>
+
+            <p className="text-gray-400 mb-4">
+              BiteRank uses your saved location to find the nearest Uber Eats stores for each supported chain,
+              then imports menu pricing and nutrition automatically. No manual URLs needed.
             </p>
-          )}
-        </div>
+
+            <div className="bg-black border border-gray-800 rounded-lg p-4">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                Chains imported automatically
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {supportedUberRestaurants.map((restaurant) => (
+                  <span
+                    key={restaurant}
+                    className="inline-flex items-center px-3 py-1.5 rounded-full bg-[#1a0f0d] border border-gray-800 text-sm text-gray-300"
+                  >
+                    {restaurant}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {!userLocation && (
+              <p className="mt-4 text-sm text-yellow-400 flex items-start">
+                <svg className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.72-1.36 3.485 0l6.518 11.594c.75 1.335-.213 3.007-1.742 3.007H3.48c-1.53 0-2.492-1.672-1.742-3.007L8.257 3.1zM11 13a1 1 0 10-2 0 1 1 0 002 0zm-.25-6.75a.75.75 0 00-1.5 0v4a.75.75 0 001.5 0v-4z" clipRule="evenodd" />
+                </svg>
+                Set your location from the welcome prompt first so we know which market to query.
+              </p>
+            )}
           </div>
 
           <div className="flex flex-wrap gap-4">
             <button
               onClick={handleUberEatsImport}
               disabled={importingUber || !userLocation}
-              className="btn-gradient-purple text-white px-8 py-4 rounded-lg font-bold btn-glow hover:shadow-lg hover:shadow-indigo-600/50 transition-all duration-300 disabled:cursor-not-allowed flex items-center space-x-2"
+              className="btn-gradient-blue text-white px-8 py-4 rounded-lg font-bold btn-glow hover:shadow-lg hover:shadow-sky-500/40 transition-all duration-300 disabled:cursor-not-allowed flex items-center space-x-2"
             >
               <svg className={`w-5 h-5 ${importingUber ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8h6l2-3h6a2 2 0 012 2v2m-1 5H9l-2 3H4a2 2 0 01-2-2v-2m9-7v12" />
               </svg>
               <span>{importingUber ? 'Importing from Uber Eats…' : 'Import Uber Eats Prices'}</span>
             </button>
-
-            <button
-              onClick={handleImportMenus}
-              disabled={importing}
-              className="btn-gradient-primary text-white px-8 py-4 rounded-lg font-bold btn-glow hover:shadow-lg hover:shadow-[#b45343]/50 transition-all duration-300 disabled:cursor-not-allowed flex items-center space-x-2"
-            >
-              <svg className={`w-5 h-5 ${importing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 1m4-3a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              <span>{importing ? 'Importing Menus…' : 'Import Latest Menus'}</span>
-            </button>
-
-          <button
-            onClick={handleRankAll}
-            disabled={ranking}
-            className="btn-gradient-green text-white px-8 py-4 rounded-lg font-bold btn-glow hover:shadow-lg hover:shadow-green-600/50 transition-all duration-300 disabled:cursor-not-allowed flex items-center space-x-2"
-          >
-            <svg className={`w-5 h-5 ${ranking ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            <span>{ranking ? 'Ranking All Deals...' : 'Re-rank All Deals with AI'}</span>
-          </button>
           </div>
         </div>
 
         {/* Deals Table */}
         <div className="bg-[#1a0f0d] rounded-xl border border-gray-900 overflow-hidden">
-          <div className="px-8 py-6 border-b border-gray-900">
+          <div className="px-8 py-6 border-b border-gray-900 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <h2 className="text-2xl font-bold text-white flex items-center">
               <svg className="w-6 h-6 mr-2 text-[#b45343]" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
@@ -473,6 +463,18 @@ function AdminPage() {
               </svg>
               All Deals ({deals.length})
             </h2>
+            <div className="flex items-center gap-3">
+              <label className="text-xs font-bold uppercase text-gray-400">Sort by</label>
+              <select
+                value={dealSort}
+                onChange={(e) => setDealSort(e.target.value)}
+                className="bg-black border border-gray-800 text-white rounded-lg px-3 py-2 text-sm focus:border-[#b45343] focus:ring-2 focus:ring-[#b45343]/30"
+              >
+                <option value="value_desc">Value score (high → low)</option>
+                <option value="price_asc">Price (low → high)</option>
+                <option value="restaurant_asc">Restaurant (A → Z)</option>
+              </select>
+            </div>
           </div>
 
           {loading ? (
@@ -489,54 +491,67 @@ function AdminPage() {
               <p className="text-gray-600">Add your first deal above!</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-900">
+            <div>
+              <table className="w-full table-fixed divide-y divide-gray-900">
                 <thead className="bg-black">
                   <tr>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Restaurant</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Item</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Price</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Value</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Satiety</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">$/Cal</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Cal</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Protein (g)</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Active</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Restaurant</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-52">Item</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-20">Price</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-20">Value</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-20">Satiety</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-24">$/Cal</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-20">Cal</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-24">Protein (g)</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-16">Active</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-900">
-                  {deals.map((deal) => {
+                  {sortedDeals.map((deal) => {
                     const valueScore = typeof deal.value_score === 'number' ? deal.value_score : null
                     const satiety = typeof deal.satiety_score === 'number' ? deal.satiety_score : null
                     const ppc = typeof deal.price_per_calorie === 'number' ? deal.price_per_calorie : null
                     const cal = typeof deal.calories === 'number' ? deal.calories : null
                     const protein = typeof deal.protein_grams === 'number' ? deal.protein_grams : null
 
-                    const valueBadgeClass =
-                      valueScore === null ? 'bg-gray-900 text-gray-500'
-                      : valueScore >= 90 ? 'score-excellent'
-                      : valueScore >= 70 ? 'score-good'
-                      : 'score-average'
+                    const getScoreGradient = (score) => {
+                      if (score === null) return 'linear-gradient(135deg, #374151, #1f2937)'
+                      if (score >= 91) return 'linear-gradient(135deg, #0B6E3F, #1EAD5A)'
+                      if (score >= 81) return 'linear-gradient(135deg, #1EAD5A, #2ECC71)'
+                      if (score >= 71) return 'linear-gradient(135deg, #2ECC71, #7BC043)'
+                      if (score >= 61) return 'linear-gradient(135deg, #7BC043, #B5CC18)'
+                      if (score >= 51) return 'linear-gradient(135deg, #B5CC18, #F1C40F)'
+                      if (score >= 41) return 'linear-gradient(135deg, #F1C40F, #E67E22)'
+                      if (score >= 31) return 'linear-gradient(135deg, #E67E22, #CC4E00)'
+                      if (score >= 21) return 'linear-gradient(135deg, #CC4E00, #A61919)'
+                      if (score >= 11) return 'linear-gradient(135deg, #A61919, #7A0D0D)'
+                      return 'linear-gradient(135deg, #7A0D0D, #7A0D0D)'
+                    }
 
                     return (
                       <tr key={deal.id} className="hover:bg-gray-950 transition-colors">
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-white">
                           {deal.restaurant_name}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                        <td className="px-6 py-4 text-sm text-gray-300 max-h-16 overflow-y-auto break-words">
                           {deal.item_name}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-bold gradient-text">
-                          {fmtMoney(deal.price)}
+                          {deal.price == null ? '—' : fmtMoney(deal.price)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <span className={`inline-flex px-3 py-1 text-xs font-bold rounded-full ${valueBadgeClass}`}>
+                          <span
+                            className="inline-flex px-3 py-1 text-xs font-bold rounded-full shadow-sm"
+                            style={{
+                              background: getScoreGradient(valueScore),
+                              color: '#0a0a0a',
+                            }}
+                          >
                             {valueScore === null ? '—' : fmtScore(valueScore, 0)}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
-                          {fmtScore(satiety, 1)}
+                          {satiety === null ? '—' : fmtScore(satiety, 1)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
                           {ppc === null ? '—' : `$${ppc.toFixed(4)}`}
@@ -553,20 +568,6 @@ function AdminPage() {
                           ) : (
                             <span className="text-red-400 font-bold">✗</span>
                           )}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold space-x-4">
-                          <button
-                            onClick={() => handleRankOne(deal.id)}
-                            className="text-blue-400 hover:text-blue-300 transition-colors"
-                          >
-                            Rank
-                          </button>
-                          <button
-                            onClick={() => handleDelete(deal.id)}
-                            className="text-red-400 hover:text-red-300 transition-colors"
-                          >
-                            Delete
-                          </button>
                         </td>
                       </tr>
                     )
