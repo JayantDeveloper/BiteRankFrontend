@@ -11,31 +11,22 @@ const api = axios.create({
 });
 
 export const dealsAPI = {
-  // Get all deals
   getDeals: (params = {}) => api.get("/deals", { params }),
 
-  // Get top deals
   getTopDeals: (limit = 10) => api.get("/deals/top", { params: { limit } }),
 
-  // Get single deal
   getDeal: (id) => api.get(`/deals/${id}`),
 
-  // Create deal
   createDeal: (dealData) => api.post("/deals", dealData),
 
-  // Update deal
   updateDeal: (id, dealData) => api.put(`/deals/${id}`, dealData),
 
-  // Delete deal
   deleteDeal: (id) => api.delete(`/deals/${id}`),
 
-  // Rank single deal
   rankDeal: (id) => api.post(`/deals/${id}/rank`),
 
-  // Rank all deals
   rankAllDeals: () => api.post("/deals/rank-all"),
 
-  // Import and auto-rank menu items from supported restaurant websites
   importScrapedMenus: (params = {}) =>
     api.post("/scrape/import", null, { params }),
 
@@ -45,10 +36,8 @@ export const dealsAPI = {
   suggestLocations: (query, limit = 5) =>
     api.get("/locations/suggest", { params: { query, limit } }),
 
-  // Get restaurants
   getRestaurants: () => api.get("/restaurants"),
 
-  // Get categories
   getCategories: () => api.get("/categories"),
 };
 

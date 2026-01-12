@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useState } from 'react'
 
 const LocationContext = createContext()
 
@@ -12,7 +12,6 @@ export function useLocation() {
 
 export function LocationProvider({ children }) {
   const [location, setLocationState] = useState(() => {
-    // Initialize from localStorage
     return localStorage.getItem('userLocation') || null
   })
 

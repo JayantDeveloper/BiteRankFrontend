@@ -16,7 +16,6 @@ function AppContent() {
   )
 
   useEffect(() => {
-    // ensure storage stays in sync if cleared
     if (!isAdminAuthed) {
       localStorage.removeItem('admin_authed')
     }

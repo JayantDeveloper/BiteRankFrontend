@@ -83,10 +83,19 @@ function HomePage() {
     throw new Error("Timed out waiting for Uber Eats job");
   };
 
+  const getScrapeStage = (completed, total) => {
+    if (!total) return "Starting up…";
+    if (completed <= 0) return "Spinning up store checks…";
+    const pct = Math.round((completed / total) * 100);
+    if (pct < 34) return "Pulling menus…";
+    if (pct < 67) return "Parsing items…";
+    if (pct < 100) return "Ranking deals…";
+    return "Finalizing results…";
+  };
+
   const startImport = async () => {
     if (!location) return;
     if (location === lastScrapedLocation) {
-      // Already scraped this location; just refresh deals
       await loadDeals();
       return;
     }
@@ -140,21 +149,28 @@ function HomePage() {
       {jobProgress.show && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-xl border border-slate-200 p-6 w-full max-w-md shadow-xl">
-            <h3 className="text-xl font-bold text-slate-900 mb-3 flex items-center space-x-2">
-              <span className="w-2 h-2 rounded-full bg-[#E85D54] animate-pulse"></span>
-              <span>Fetching local deals</span>
-            </h3>
-            <p className="text-slate-600 mb-3">
-              Status: {jobProgress.status} — {jobProgress.completed}/{jobProgress.total} stores
-            </p>
-            <div className="w-full progress-shell h-3 overflow-hidden">
+            <div className="flex items-center justify-between text-sm font-semibold text-slate-600 mb-3">
+              <span>Loading</span>
+              <span>
+                {jobProgress.total
+                  ? Math.min(100, Math.round((jobProgress.completed / jobProgress.total) * 100))
+                  : 10}
+                %
+              </span>
+            </div>
+            <div className="w-full border-2 border-slate-300 rounded-md bg-white/70 p-1 shadow-sm">
               <div
-                className="h-3 progress-animated transition-all"
+                className="h-4 rounded-sm transition-all duration-500 ease-out"
                 style={{
                   width: `${jobProgress.total ? Math.min(100, Math.round((jobProgress.completed / jobProgress.total) * 100)) : 10}%`,
+                  backgroundImage:
+                    "repeating-linear-gradient(90deg, var(--brand-primary) 0 14px, rgba(255,255,255,0.0) 14px 18px)",
                 }}
               ></div>
             </div>
+            <p className="mt-3 text-sm text-slate-600">
+              {getScrapeStage(jobProgress.completed, jobProgress.total)}
+            </p>
           </div>
         </div>
       )}

@@ -205,17 +205,33 @@ function AdminPage({ onLogout }) {
               <span className="w-2 h-2 rounded-full bg-[#b45343] animate-pulse"></span>
               <span>Scraping Uber Eats</span>
             </h3>
-            <p className="text-gray-300 mb-3">
-              Status: {jobProgress.status} — {jobProgress.completed}/{jobProgress.total || supportedUberRestaurants.length} stores
-            </p>
-            <div className="w-full progress-shell h-3 overflow-hidden">
+            <div className="flex items-center justify-between text-sm font-semibold text-slate-300 mb-3">
+              <span>Loading</span>
+              <span>
+                {(jobProgress.total || supportedUberRestaurants.length)
+                  ? Math.min(
+                      100,
+                      Math.round(
+                        (jobProgress.completed / (jobProgress.total || supportedUberRestaurants.length)) * 100
+                      )
+                    )
+                  : 10}
+                %
+              </span>
+            </div>
+            <div className="w-full border-2 border-slate-600 rounded-md bg-white/5 p-1 shadow-sm">
               <div
-                className="h-3 progress-animated transition-all"
+                className="h-4 rounded-sm transition-all duration-500 ease-out"
                 style={{
                   width: `${(jobProgress.total || supportedUberRestaurants.length) ? Math.min(100, Math.round((jobProgress.completed / (jobProgress.total || supportedUberRestaurants.length)) * 100)) : 10}%`,
+                  backgroundImage:
+                    "repeating-linear-gradient(90deg, var(--brand-primary) 0 14px, rgba(0,0,0,0) 14px 18px)",
                 }}
               ></div>
             </div>
+            <p className="mt-3 text-sm text-gray-300">
+              Checking {jobProgress.completed}/{jobProgress.total || supportedUberRestaurants.length} stores
+            </p>
           </div>
         </div>
       )}
@@ -513,6 +529,7 @@ function AdminPage({ onLogout }) {
                     const ppc = typeof deal.price_per_calorie === 'number' ? deal.price_per_calorie : null
                     const cal = typeof deal.calories === 'number' ? deal.calories : null
                     const protein = typeof deal.protein_grams === 'number' ? deal.protein_grams : null
+                    const isUnranked = valueScore === null || valueScore <= 0
 
                     const getScoreGradient = (score) => {
                       if (score === null) return 'linear-gradient(135deg, #374151, #1f2937)'
@@ -543,11 +560,13 @@ function AdminPage({ onLogout }) {
                           <span
                             className="inline-flex px-3 py-1 text-xs font-bold rounded-full shadow-sm"
                             style={{
-                              background: getScoreGradient(valueScore),
+                              background: isUnranked
+                                ? 'linear-gradient(135deg, #374151, #1f2937)'
+                                : getScoreGradient(valueScore),
                               color: '#0a0a0a',
                             }}
                           >
-                            {valueScore === null ? '—' : fmtScore(valueScore, 0)}
+                            {isUnranked ? 'Unranked' : fmtScore(valueScore, 0)}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">

@@ -18,7 +18,7 @@ function LocationPrompt({ onLocationSet }) {
       return 'Please enter a ZIP (e.g., 10001) or City, ST (e.g., New York, NY)'
     }
     const zipPattern = /^\d{5}(-\d{4})?$/
-    const cityStatePattern = /^[A-Za-z][A-Za-z\s.'-]+,\s*[A-Za-z]{2}$/ // City, ST
+    const cityStatePattern = /^[A-Za-z][A-Za-z\s.'-]+,\s*[A-Za-z]{2}$/
 
     if (!zipPattern.test(trimmed) && !cityStatePattern.test(trimmed)) {
       return 'Use ZIP (12345) or City, ST (e.g., New York, NY)'
@@ -161,7 +161,6 @@ function LocationPrompt({ onLocationSet }) {
     setSuggestions([])
     setShowSuggestions(false)
     setError('')
-    // Immediately set and route to home when picking a suggestion
     const validationError = validateLocation(label)
     if (!validationError) {
       onLocationSet(label.trim())
