@@ -59,21 +59,35 @@ function HomePage() {
     }
   };
 
+  const mergeJobProgress = (prev, data) => {
+    const prog = data?.progress || {};
+    const totalFromServer = Number.isFinite(prog.total_stores) ? prog.total_stores : null;
+    const completedFromServer = Number.isFinite(prog.completed) ? prog.completed : null;
+    const failedFromServer = Number.isFinite(prog.failed) ? prog.failed : null;
+    const prevFailed = Number.isFinite(prev.failed) ? prev.failed : 0;
+    const prevDone = Number.isFinite(prev.completed) ? prev.completed : 0;
+    const prevCompletedOnly = Math.max(0, prevDone - prevFailed);
+    const completedOnly = completedFromServer ?? prevCompletedOnly;
+    const failed = failedFromServer ?? prevFailed;
+    const done = completedOnly + failed;
+    const total =
+      totalFromServer && totalFromServer > 0 ? totalFromServer : prev.total || restaurants.length;
+
+    return {
+      ...prev,
+      show: true,
+      status: data?.status || prev.status,
+      completed: Math.max(prevDone, done),
+      failed,
+      total,
+    };
+  };
+
   const pollUberJob = async (jobId, { intervalMs = 2000, maxAttempts = 120 } = {}) => {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const res = await dealsAPI.getUberEatsJob(jobId);
       const data = res?.data ?? {};
-      const prog = data.progress || {};
-      const total = prog.total_stores || restaurants.length;
-      const done = (prog.completed || 0) + (prog.failed || 0);
-      setJobProgress((prev) => ({
-        ...prev,
-        show: true,
-        status: data.status || prev.status,
-        completed: done,
-        failed: prog.failed || 0,
-        total: total,
-      }));
+      setJobProgress((prev) => mergeJobProgress(prev, data));
 
       if (data.status && data.status !== "running" && data.status !== "queued") {
         return data;

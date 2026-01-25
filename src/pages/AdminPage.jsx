@@ -11,6 +11,7 @@ function AdminPage({ onLogout }) {
   const [jobProgress, setJobProgress] = useState({
     show: false,
     completed: 0,
+    failed: 0,
     total: 0,
     status: 'queued',
   })
@@ -98,20 +99,37 @@ function AdminPage({ onLogout }) {
     }
   }
 
+  const mergeJobProgress = (prev, data) => {
+    const prog = data?.progress || {}
+    const totalFromServer = Number.isFinite(prog.total_stores) ? prog.total_stores : null
+    const completedFromServer = Number.isFinite(prog.completed) ? prog.completed : null
+    const failedFromServer = Number.isFinite(prog.failed) ? prog.failed : null
+    const prevFailed = Number.isFinite(prev.failed) ? prev.failed : 0
+    const prevDone = Number.isFinite(prev.completed) ? prev.completed : 0
+    const prevCompletedOnly = Math.max(0, prevDone - prevFailed)
+    const completedOnly = completedFromServer ?? prevCompletedOnly
+    const failed = failedFromServer ?? prevFailed
+    const done = completedOnly + failed
+    const total =
+      totalFromServer && totalFromServer > 0
+        ? totalFromServer
+        : prev.total || supportedUberRestaurants.length
+
+    return {
+      ...prev,
+      show: true,
+      completed: Math.max(prevDone, done),
+      failed,
+      total,
+      status: data?.status || prev.status,
+    }
+  }
+
   const pollUberJob = async (jobId, { intervalMs = 2000, maxAttempts = 120 } = {}) => {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const res = await dealsAPI.getUberEatsJob(jobId)
       const data = res?.data ?? {}
-      const prog = data.progress || {}
-      const total = prog.total_stores || 0
-      const done = (prog.completed || 0) + (prog.failed || 0)
-      setJobProgress((prev) => ({
-        ...prev,
-        show: true,
-        completed: done,
-        total: total || prev.total || supportedUberRestaurants.length,
-        status: data.status || prev.status,
-      }))
+      setJobProgress((prev) => mergeJobProgress(prev, data))
       if (!data.status || data.status === 'running' || data.status === 'queued') {
         await new Promise((r) => setTimeout(r, intervalMs))
         continue
@@ -146,7 +164,13 @@ function AdminPage({ onLogout }) {
       const jobId = response?.data?.job_id
       if (!jobId) throw new Error('Job not started')
 
-      setJobProgress({ show: true, completed: 0, total: supportedUberRestaurants.length, status: 'queued' })
+      setJobProgress({
+        show: true,
+        completed: 0,
+        failed: 0,
+        total: supportedUberRestaurants.length,
+        status: 'queued',
+      })
 
       const jobResult = await pollUberJob(jobId)
       const result = jobResult?.result || {}
@@ -170,7 +194,7 @@ function AdminPage({ onLogout }) {
       alert('Failed to import Uber Eats menus')
     } finally {
       setImportingUber(false)
-      setJobProgress({ show: false, completed: 0, total: 0, status: 'done' })
+      setJobProgress({ show: false, completed: 0, failed: 0, total: 0, status: 'done' })
     }
   }
 

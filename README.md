@@ -1,17 +1,18 @@
 # BiteRank Frontend
 
-> AI-powered web app that helps users find the biggest bites for the smallest bucks.  
+> Web app that helps users find the biggest bites for the smallest bucks.  
 > Live at [biterank.tech](https://biterank.tech)
 
 ## Overview
-BiteRank aggregates and ranks deals from major fast-food chains using AI to evaluate *true value* — factoring in price, portion size, and nutrition.  
+BiteRank aggregates and ranks deals from major fast-food chains using deterministic scoring to evaluate *true value* — factoring in price, portion size, and nutrition.  
 The frontend provides a clean, responsive interface for browsing and comparing the best-value menu items nationwide.
 
 Built with **React**, **TypeScript**, and **TailwindCSS**, it connects to the backend for live deal rankings and updates every few hours.
 
 ---
 
-## Features 
+## Features
+- 🍟 **Value Ranking:** Scores deals by price, portion, and nutrition  
 - 🔄 **Auto-Refreshing Data:** Integrates with backend scrapers updated every six hours  
 - 💻 **Responsive UI:** Fast, modern interface optimized for desktop and mobile  
 - 🧭 **Cross-Chain Comparison:** Displays top deals from McDonald’s, Taco Bell, Burger King, and more  

@@ -18,7 +18,7 @@ function LocationPrompt({ onLocationSet }) {
       return 'Please enter a ZIP (e.g., 10001) or City, ST (e.g., New York, NY)'
     }
     const zipPattern = /^\d{5}(-\d{4})?$/
-    const cityStatePattern = /^[A-Za-z][A-Za-z\s.'-]+,\s*[A-Za-z]{2}$/
+    const cityStatePattern = /^[A-Za-z][A-Za-z\s.'-]+,\s*(?:[A-Za-z]{2}|[A-Za-z\s.'-]+)$/
 
     if (!zipPattern.test(trimmed) && !cityStatePattern.test(trimmed)) {
       return 'Use ZIP (12345) or City, ST (e.g., New York, NY)'
@@ -225,11 +225,6 @@ function LocationPrompt({ onLocationSet }) {
 
             {showSuggestions && (suggestions.length > 0 || fetchingSuggestions) && (
               <div className="absolute z-20 mt-2 w-full surface-soft border border-slate-200 rounded-xl shadow-xl max-h-56 overflow-auto">
-                {fetchingSuggestions && (
-                  <div className="px-4 py-3 text-xs uppercase tracking-wide text-slate-500">
-                    Searching…
-                  </div>
-                )}
                 {suggestions.map((suggestion) => (
                   <button
                     key={`${suggestion.label}-${suggestion.latitude}-${suggestion.longitude}`}
