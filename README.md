@@ -11,8 +11,7 @@ Built with **React**, **TypeScript**, and **TailwindCSS**, it connects to the ba
 
 ---
 
-## Features
-- 🍟 **AI Ranking:** Uses Google Gemini AI to score deals by price, portion, and nutrition  
+## Features 
 - 🔄 **Auto-Refreshing Data:** Integrates with backend scrapers updated every six hours  
 - 💻 **Responsive UI:** Fast, modern interface optimized for desktop and mobile  
 - 🧭 **Cross-Chain Comparison:** Displays top deals from McDonald’s, Taco Bell, Burger King, and more  
