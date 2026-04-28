@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { dealsAPI } from '../services/api'
 import { useLocation } from '../contexts/LocationContext'
 
@@ -14,7 +14,9 @@ function AdminPage({ onLogout }) {
     failed: 0,
     total: 0,
     status: 'queued',
+    stage: 'idle',
   })
+  const pollRef = useRef({ jobId: null, promise: null, abort: false })
   const supportedUberRestaurants = useMemo(
     () => [
       "McDonald's",
@@ -122,21 +124,78 @@ function AdminPage({ onLogout }) {
       failed,
       total,
       status: data?.status || prev.status,
+      stage: prog.stage || prev.stage,
     }
   }
 
-  const pollUberJob = async (jobId, { intervalMs = 2000, maxAttempts = 120 } = {}) => {
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      const res = await dealsAPI.getUberEatsJob(jobId)
-      const data = res?.data ?? {}
-      setJobProgress((prev) => mergeJobProgress(prev, data))
-      if (!data.status || data.status === 'running' || data.status === 'queued') {
-        await new Promise((r) => setTimeout(r, intervalMs))
-        continue
-      }
-      return data
+  const getStageLabel = (progress) => {
+    if (!progress) return 'Preparing scrape...'
+    if (progress.stage === 'finding_stores') return 'Finding nearby stores...'
+    if (progress.stage === 'scraping_menus') return 'Scraping menus...'
+    if (progress.stage === 'finalizing') return 'Finalizing results...'
+    const total = progress.total || supportedUberRestaurants.length
+    if (!total || progress.completed <= 0) return 'Spinning up store checks...'
+    const pct = Math.round((progress.completed / total) * 100)
+    if (pct < 50) return 'Scraping menus...'
+    if (pct < 85) return 'Extracting items...'
+    if (pct < 100) return 'Scoring deals...'
+    return 'Finalizing results...'
+  }
+
+  const getStagePercent = (progress) => {
+    if (!progress) return 5
+    const total = progress.total || supportedUberRestaurants.length
+    const completed = progress.completed || 0
+    const basePct = total ? Math.round((completed / total) * 100) : 0
+    if (progress.stage === 'finding_stores') {
+      return Math.max(5, Math.min(20, basePct || 10))
     }
-    throw new Error('Timed out waiting for Uber Eats job to finish')
+    if (progress.stage === 'scraping_menus') {
+      return Math.max(20, Math.min(85, basePct || 25))
+    }
+    if (progress.stage === 'finalizing') {
+      return Math.max(85, Math.min(100, basePct || 90))
+    }
+    return Math.max(5, basePct || 10)
+  }
+
+  const pollUberJob = (jobId, { intervalMs = 2000, maxAttempts = 120 } = {}) => {
+    if (pollRef.current.jobId === jobId && pollRef.current.promise) {
+      return pollRef.current.promise
+    }
+    if (pollRef.current.promise) {
+      pollRef.current.abort = true
+    }
+
+    const promise = (async () => {
+      pollRef.current.abort = false
+      pollRef.current.jobId = jobId
+
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        if (pollRef.current.abort) {
+          throw new Error('Polling cancelled')
+        }
+        const res = await dealsAPI.getUberEatsJob(jobId)
+        const data = res?.data ?? {}
+        setJobProgress((prev) => mergeJobProgress(prev, data))
+        if (!data.status || data.status === 'running' || data.status === 'queued') {
+          await new Promise((r) => setTimeout(r, intervalMs))
+          continue
+        }
+        return data
+      }
+      throw new Error('Timed out waiting for Uber Eats job to finish')
+    })()
+
+    pollRef.current.promise = promise.finally(() => {
+      if (pollRef.current.jobId === jobId) {
+        pollRef.current.jobId = null
+        pollRef.current.promise = null
+        pollRef.current.abort = false
+      }
+    })
+
+    return pollRef.current.promise
   }
 
   const handleUberEatsImport = async () => {
@@ -170,6 +229,7 @@ function AdminPage({ onLogout }) {
         failed: 0,
         total: supportedUberRestaurants.length,
         status: 'queued',
+        stage: 'starting',
       })
 
       const jobResult = await pollUberJob(jobId)
@@ -194,7 +254,7 @@ function AdminPage({ onLogout }) {
       alert('Failed to import Uber Eats menus')
     } finally {
       setImportingUber(false)
-      setJobProgress({ show: false, completed: 0, failed: 0, total: 0, status: 'done' })
+      setJobProgress({ show: false, completed: 0, failed: 0, total: 0, status: 'done', stage: 'idle' })
     }
   }
 
@@ -232,14 +292,7 @@ function AdminPage({ onLogout }) {
             <div className="flex items-center justify-between text-sm font-semibold text-slate-300 mb-3">
               <span>Loading</span>
               <span>
-                {(jobProgress.total || supportedUberRestaurants.length)
-                  ? Math.min(
-                      100,
-                      Math.round(
-                        (jobProgress.completed / (jobProgress.total || supportedUberRestaurants.length)) * 100
-                      )
-                    )
-                  : 10}
+                {Math.min(100, getStagePercent(jobProgress))}
                 %
               </span>
             </div>
@@ -247,13 +300,16 @@ function AdminPage({ onLogout }) {
               <div
                 className="h-4 rounded-sm transition-all duration-500 ease-out"
                 style={{
-                  width: `${(jobProgress.total || supportedUberRestaurants.length) ? Math.min(100, Math.round((jobProgress.completed / (jobProgress.total || supportedUberRestaurants.length)) * 100)) : 10}%`,
+                  width: `${Math.min(100, getStagePercent(jobProgress))}%`,
                   backgroundImage:
                     "repeating-linear-gradient(90deg, var(--brand-primary) 0 14px, rgba(0,0,0,0) 14px 18px)",
                 }}
               ></div>
             </div>
             <p className="mt-3 text-sm text-gray-300">
+              {getStageLabel(jobProgress)}
+            </p>
+            <p className="mt-1 text-sm text-gray-300">
               Checking {jobProgress.completed}/{jobProgress.total || supportedUberRestaurants.length} stores
             </p>
           </div>

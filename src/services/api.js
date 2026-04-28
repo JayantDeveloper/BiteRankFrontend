@@ -3,10 +3,13 @@ import axios from "axios";
 const API_BASE_URL =
   import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
+const SCRAPE_API_KEY = import.meta.env.VITE_SCRAPE_API_KEY || ''
+
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     "Content-Type": "application/json",
+    ...(SCRAPE_API_KEY ? { "X-API-Key": SCRAPE_API_KEY } : {}),
   },
 });
 

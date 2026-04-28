@@ -1,13 +1,22 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLocation } from '../contexts/LocationContext'
 
 function Navbar() {
   const { location, clearLocation } = useLocation()
+  const [confirmingChange, setConfirmingChange] = useState(false)
 
-  const handleChangeLocation = () => {
-    if (confirm('Are you sure you want to change your location? This will reload pricing data.')) {
-      clearLocation()
-    }
+  const handleChangeLocationClick = () => {
+    setConfirmingChange(true)
+  }
+
+  const handleConfirmChange = () => {
+    setConfirmingChange(false)
+    clearLocation()
+  }
+
+  const handleCancelChange = () => {
+    setConfirmingChange(false)
   }
 
   return (
@@ -23,10 +32,10 @@ function Navbar() {
               />
             </Link>
           </div>
-          <div className="flex items-center space-x-4">
-            {location && (
+          <div className="flex items-center space-x-2">
+            {location && !confirmingChange && (
               <button
-                onClick={handleChangeLocation}
+                onClick={handleChangeLocationClick}
                 className="flex items-center text-white/90 hover:text-white px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 hover:bg-white/10"
                 title="Change location"
               >
@@ -39,19 +48,42 @@ function Navbar() {
                 </svg>
               </button>
             )}
-            <Link
-              to="/"
-              className="text-white/90 hover:text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 hover:bg-white/10"
-            >
-              Home
-            </Link>
-            <Link
-              to="/admin"
-              className="relative text-[#1f1204] px-6 py-2 rounded-lg text-sm font-bold btn-glow overflow-hidden transition-all duration-300"
-              style={{ background: 'linear-gradient(135deg, #F4B942, #FF9B54)', boxShadow: '0 12px 32px rgba(0,0,0,0.18)' }}
-            >
-              Admin
-            </Link>
+
+            {confirmingChange && (
+              <div className="flex items-center gap-2 bg-white/10 rounded-lg px-3 py-1.5">
+                <span className="text-white text-xs font-semibold">Change location?</span>
+                <button
+                  onClick={handleConfirmChange}
+                  className="text-xs font-bold text-white bg-white/20 hover:bg-white/30 px-2 py-1 rounded transition-colors"
+                >
+                  Yes
+                </button>
+                <button
+                  onClick={handleCancelChange}
+                  className="text-xs font-bold text-white/70 hover:text-white px-2 py-1 rounded transition-colors"
+                >
+                  No
+                </button>
+              </div>
+            )}
+
+            {!confirmingChange && (
+              <>
+                <Link
+                  to="/"
+                  className="text-white/90 hover:text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 hover:bg-white/10"
+                >
+                  Home
+                </Link>
+                <Link
+                  to="/admin"
+                  className="relative text-[#1f1204] px-6 py-2 rounded-lg text-sm font-bold btn-glow overflow-hidden transition-all duration-300"
+                  style={{ background: 'linear-gradient(135deg, #F4B942, #FF9B54)', boxShadow: '0 12px 32px rgba(0,0,0,0.18)' }}
+                >
+                  Admin
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </div>
