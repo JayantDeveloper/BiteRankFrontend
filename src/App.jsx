@@ -6,8 +6,8 @@ import Navbar from './components/Navbar'
 import LocationPrompt from './components/LocationPrompt'
 import { LocationProvider, useLocation } from './contexts/LocationContext'
 
-const ADMIN_USER = 'jaym'
-const ADMIN_PASS = 'tintin10!'
+const ADMIN_USER = import.meta.env.VITE_ADMIN_USER || 'admin'
+const ADMIN_PASS = import.meta.env.VITE_ADMIN_PASS || ''
 
 function AppContent() {
   const { location, setLocation } = useLocation()

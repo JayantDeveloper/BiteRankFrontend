@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.cache/
+.DS_Store
+
+# Local env — never commit
+.env
+.env.local
+.env.*.local
