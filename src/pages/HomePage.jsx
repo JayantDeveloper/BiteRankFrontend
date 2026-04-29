@@ -30,6 +30,7 @@ function HomePage() {
   const [lastScrapedLocation, setLastScrapedLocation] = useState(() =>
     localStorage.getItem("lastScrapedLocation") || null
   );
+  const [fetchedAt, setFetchedAt] = useState(null);
 
   // Time-based progress animation
   useEffect(() => {
@@ -41,7 +42,6 @@ function HomePage() {
 
     const animate = () => {
       const elapsed = Date.now() - scrapeStartTime.current;
-      // Asymptotic curve: ~50% at 30s, ~75% at 60s, plateaus near 90%
       const timePct = 90 * (1 - Math.exp(-elapsed / 50000));
       const serverPct = getServerPct(jobProgress);
       setDisplayPct(Math.max(timePct, serverPct));
@@ -83,8 +83,6 @@ function HomePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedRestaurant, sortBy]);
 
-  const [fetchedAt, setFetchedAt] = useState(null);
-
   const loadDeals = async () => {
     try {
       setLoading(true);
@@ -103,14 +101,12 @@ function HomePage() {
     }
   };
 
-  // Server-side progress as a percentage (used as floor for time animation)
   const getServerPct = (progress) => {
     if (!progress) return 5;
     const { stage, finding_stores_done, finding_stores_total, completed, total } = progress;
 
     if (stage === "finding_stores" || stage === "starting") {
       if (finding_stores_total > 0) {
-        // 0–30% range during finding stores
         return Math.min(30, Math.round((finding_stores_done / finding_stores_total) * 30));
       }
       return 5;
@@ -256,46 +252,12 @@ function HomePage() {
     }
   };
 
+  const pct = Math.round(Math.min(100, displayPct));
+
   return (
     <div className="bg-canvas min-h-screen">
-      {/* Progress overlay */}
-      {jobProgress.show && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-8 w-full max-w-sm shadow-2xl border border-slate-100">
-            <p className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-1">
-              Scanning UberEats
-            </p>
-            <p className="text-slate-700 text-sm mb-5">
-              {getScrapeStage(jobProgress)}
-            </p>
-
-            {/* Progress bar */}
-            <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden mb-3">
-              <div
-                className="h-full rounded-full"
-                style={{
-                  width: `${Math.min(100, displayPct).toFixed(1)}%`,
-                  background: "linear-gradient(90deg, var(--brand-primary), var(--brand-accent))",
-                  transition: "width 0.3s ease-out",
-                }}
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <span className="text-2xl font-black text-slate-800">
-                {Math.round(Math.min(100, displayPct))}%
-              </span>
-              {jobProgress.total > 0 && (
-                <span className="text-xs text-slate-400">
-                  {jobProgress.completed} / {jobProgress.total} stores
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-14 text-slate-900">
+
         {/* Header */}
         <div className="text-center mb-12">
           <h1 className="text-5xl md:text-6xl font-extrabold tracking-tight mb-3 gradient-text">
@@ -306,53 +268,91 @@ function HomePage() {
           </p>
         </div>
 
-        {/* Filters */}
-        <div className="surface-card p-5 mb-10">
-          <div className="flex flex-wrap gap-4 items-end">
-            <div className="flex-1 min-w-[180px]">
-              <label className="block text-xs font-bold section-title mb-2">Restaurant</label>
-              <select
-                value={selectedRestaurant}
-                onChange={(e) => setSelectedRestaurant(e.target.value)}
-                className="block w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-slate-900 focus:border-[#E85D54] focus:ring-2 focus:ring-[#E85D54]/30 focus:outline-none transition-all shadow-sm text-sm"
-              >
-                <option value="">All Restaurants</option>
-                {restaurants.map((r) => (
-                  <option key={r} value={r}>{r}</option>
-                ))}
-              </select>
-            </div>
-            <div className="flex-1 min-w-[180px]">
-              <label className="block text-xs font-bold section-title mb-2">Sort by</label>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="block w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-slate-900 focus:border-[#E85D54] focus:ring-2 focus:ring-[#E85D54]/30 focus:outline-none transition-all shadow-sm text-sm"
-              >
-                <option value="value_score">Highest value score</option>
-                <option value="price">Lowest price</option>
-                <option value="price_per_calorie">Best $/cal</option>
-                <option value="price_per_protein">Best $/protein</option>
-                <option value="protein_grams">Highest protein</option>
-                <option value="calories">Lowest calories</option>
-              </select>
-            </div>
-            <button
-              onClick={startImport}
-              disabled={isScraping || !location}
-              className="btn-gradient-primary px-6 py-2.5 rounded-lg font-bold btn-glow transition-all duration-300 flex items-center gap-2 text-sm"
+        {/* Filter bar — flat row, no card */}
+        <div className="surface-row flex flex-wrap gap-4 items-end pb-6 mb-10">
+          <div className="flex-1 min-w-[180px]">
+            <label className="block text-xs font-bold section-title mb-2">Restaurant</label>
+            <select
+              value={selectedRestaurant}
+              onChange={(e) => setSelectedRestaurant(e.target.value)}
+              disabled={isScraping}
+              className="block w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-slate-900 focus:border-[#E85D54] focus:ring-2 focus:ring-[#E85D54]/30 focus:outline-none transition-all shadow-sm text-sm disabled:opacity-50"
             >
-              <svg className={`w-4 h-4 ${isScraping ? "animate-spin" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <option value="">All Restaurants</option>
+              {restaurants.map((r) => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex-1 min-w-[180px]">
+            <label className="block text-xs font-bold section-title mb-2">Sort by</label>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              disabled={isScraping}
+              className="block w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-slate-900 focus:border-[#E85D54] focus:ring-2 focus:ring-[#E85D54]/30 focus:outline-none transition-all shadow-sm text-sm disabled:opacity-50"
+            >
+              <option value="value_score">Highest value score</option>
+              <option value="price">Lowest price</option>
+              <option value="price_per_calorie">Best $/cal</option>
+              <option value="price_per_protein">Best $/protein</option>
+              <option value="protein_grams">Highest protein</option>
+              <option value="calories">Lowest calories</option>
+            </select>
+          </div>
+          <button
+            onClick={startImport}
+            disabled={isScraping || !location}
+            className="btn-gradient-primary px-6 py-2.5 rounded-lg font-bold btn-glow transition-all duration-300 flex items-center gap-2 text-sm"
+          >
+            <svg className={`w-4 h-4 ${isScraping ? "animate-spin" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span>{isScraping ? "Scanning…" : "Refresh"}</span>
+          </button>
+        </div>
+
+        {/* Inline scraping state — replaces everything below */}
+        {isScraping && (
+          <div className="flex flex-col items-center py-16 text-center animate-fade-up">
+            {/* Animated orb */}
+            <div className="scraping-pulse relative mb-8 w-24 h-24 rounded-full flex items-center justify-center"
+              style={{ background: 'linear-gradient(135deg, rgba(232,93,84,0.12), rgba(255,155,84,0.2))' }}>
+              <svg className="w-11 h-11 animate-spin" style={{ color: 'var(--brand-primary)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                   d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
-              <span>Refresh</span>
-            </button>
+            </div>
+
+            <h2 className="text-2xl font-bold text-slate-800 mb-2">Scanning UberEats</h2>
+            <p className="text-slate-500 text-base mb-10 max-w-sm">{getScrapeStage(jobProgress)}</p>
+
+            {/* Progress bar */}
+            <div className="w-full max-w-lg">
+              <div className="progress-shell h-3 overflow-hidden mb-4">
+                <div
+                  className="h-full rounded-full transition-all duration-500 ease-out"
+                  style={{
+                    width: `${Math.min(100, displayPct).toFixed(1)}%`,
+                    background: 'linear-gradient(90deg, var(--brand-primary), var(--brand-accent))',
+                  }}
+                />
+              </div>
+              <div className="flex justify-between items-center">
+                {jobProgress.total > 0 ? (
+                  <span className="text-sm text-slate-400">
+                    {jobProgress.completed} of {jobProgress.total} stores
+                  </span>
+                ) : <span />}
+                <span className="text-3xl font-black text-slate-800">{pct}%</span>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Loading skeleton */}
-        {loading && (
+        {!isScraping && loading && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[0, 1, 2].map((i) => (
               <div key={i} className="surface-card overflow-hidden animate-pulse">
@@ -371,7 +371,7 @@ function HomePage() {
         )}
 
         {/* Error state */}
-        {!loading && error && (
+        {!isScraping && !loading && error && (
           <div className="surface-soft border border-red-200 text-red-600 px-5 py-4 rounded-xl mb-8 flex items-center gap-3 text-sm">
             <svg className="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
@@ -381,8 +381,8 @@ function HomePage() {
         )}
 
         {/* Empty state */}
-        {!loading && !error && deals.length === 0 && !isScraping && (
-          <div className="surface-card text-center py-20 border-dashed border-2 border-slate-200">
+        {!isScraping && !loading && !error && deals.length === 0 && (
+          <div className="text-center py-24 border-2 border-dashed border-slate-200 rounded-2xl">
             <svg className="w-16 h-16 text-slate-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                 d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
@@ -395,14 +395,17 @@ function HomePage() {
         )}
 
         {/* Deals grid */}
-        {!loading && !error && deals.length > 0 && (
+        {!isScraping && !loading && !error && deals.length > 0 && (
           <>
             {fetchedAt && (
-              <p className="text-xs text-slate-400 text-right mb-3">
-                Updated {Math.round((Date.now() - fetchedAt) / 60000) < 1
-                  ? "just now"
-                  : `${Math.round((Date.now() - fetchedAt) / 60000)}m ago`}
-              </p>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-sm font-bold section-title">Top Deals</h2>
+                <p className="text-xs text-slate-400">
+                  Updated {Math.round((Date.now() - fetchedAt) / 60000) < 1
+                    ? "just now"
+                    : `${Math.round((Date.now() - fetchedAt) / 60000)}m ago`}
+                </p>
+              </div>
             )}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {deals.map((deal, index) => (

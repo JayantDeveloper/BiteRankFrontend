@@ -47,19 +47,22 @@ a { color: inherit; }
 .surface-card {
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: 18px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-  transition: transform 0.28s ease, box-shadow 0.28s ease, border-color 0.28s ease;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
 }
 .surface-card:hover {
-  transform: translateY(-6px);
-  border-color: rgba(232, 93, 84, 0.35);
-  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.15);
+  transform: translateY(-4px);
+  border-color: rgba(232, 93, 84, 0.3);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.10);
 }
 .surface-soft {
   background: var(--bg-soft);
   border: 1px solid var(--border);
   border-radius: 14px;
+}
+.surface-row {
+  border-bottom: 1px solid var(--border);
 }
 
 .section-title { font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-soft); }
@@ -217,3 +220,15 @@ select:focus {
 .animate-fade-up {
   animation: fadeUp 0.45s ease-out both;
 }
+
+@keyframes pulseOrb {
+  0%, 100% { transform: scale(1); opacity: 0.85; }
+  50% { transform: scale(1.06); opacity: 1; }
+}
+.scraping-pulse { animation: pulseOrb 2.2s ease-in-out infinite; }
+
+@keyframes scanLine {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(300%); }
+}
+.scan-line { animation: scanLine 1.8s ease-in-out infinite; }
