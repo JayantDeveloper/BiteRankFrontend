@@ -3,6 +3,32 @@ import { dealsAPI } from "../services/api";
 import DealCard from "../components/DealCard";
 import { useLocation } from "../contexts/LocationContext";
 
+// ─── DevTools debug helper ────────────────────────────────────────────────────
+// All scrape activity is logged under the [BiteRank] group.
+// Full history is also at window.BITERANK_DEBUG in the browser console.
+const DBG = (() => {
+  if (typeof window !== "undefined") {
+    window.BITERANK_DEBUG = window.BITERANK_DEBUG || {
+      session_start: new Date().toISOString(),
+      events: [],
+    };
+  }
+  const push = (tag, data) => {
+    const entry = { t: new Date().toISOString(), tag, ...data };
+    if (typeof window !== "undefined") window.BITERANK_DEBUG.events.push(entry);
+    return entry;
+  };
+  return {
+    group:  (label) => console.group(`%c[BiteRank] ${label}`, "color:#E85D54;font-weight:bold"),
+    groupEnd: () => console.groupEnd(),
+    log:    (...args) => console.log("%c[BiteRank]", "color:#E85D54;font-weight:bold", ...args),
+    warn:   (...args) => console.warn("%c[BiteRank]", "color:#f59e0b;font-weight:bold", ...args),
+    error:  (...args) => console.error("%c[BiteRank]", "color:#ef4444;font-weight:bold", ...args),
+    event:  (tag, data) => { const e = push(tag, data); console.log(`%c[BiteRank] ${tag}`, "color:#E85D54;font-weight:bold", data); return e; },
+  };
+})();
+// ─────────────────────────────────────────────────────────────────────────────
+
 function HomePage() {
   const { location } = useLocation();
   const [deals, setDeals] = useState([]);
@@ -68,7 +94,15 @@ function HomePage() {
   }, [jobProgress.status]);
 
   useEffect(() => {
-    if (!location) return;
+    if (!location) {
+      DBG.log("useEffect[location] fired — location is empty, skipping");
+      return;
+    }
+    DBG.event("location_effect", {
+      location,
+      lastScrapedLocation,
+      action: location === lastScrapedLocation ? "load_existing" : "start_import",
+    });
     if (location === lastScrapedLocation) {
       loadDeals();
     } else {
@@ -84,20 +118,42 @@ function HomePage() {
   }, [selectedRestaurant, sortBy]);
 
   const loadDeals = async () => {
+    DBG.group("loadDeals()");
     try {
       setLoading(true);
       const params = {};
       if (selectedRestaurant) params.restaurant = selectedRestaurant;
       if (sortBy) params.sort_by = sortBy;
+      DBG.log("GET /api/deals params →", params);
       const response = await dealsAPI.getDeals({ ...params, limit: 10 });
-      setDeals(response.data);
+      const deals = response.data;
+      DBG.event("deals_loaded", {
+        count: Array.isArray(deals) ? deals.length : "non-array",
+        params,
+        first_3: Array.isArray(deals) ? deals.slice(0, 3).map(d => ({
+          id: d.id,
+          name: d.item_name,
+          restaurant: d.restaurant_name,
+          price: d.price,
+          value_score: d.value_score,
+          calories: d.calories,
+          protein: d.protein_grams,
+          is_active: d.is_active,
+        })) : deals,
+        raw_response_status: response.status,
+      });
+      if (!Array.isArray(deals) || deals.length === 0) {
+        DBG.warn("⚠️  GET /api/deals returned empty or non-array. Full response:", response.data);
+      }
+      setDeals(deals);
       setFetchedAt(Date.now());
       setError(null);
     } catch (err) {
+      DBG.error("GET /api/deals FAILED →", err?.response?.status, err?.response?.data, err?.message);
       setError("Failed to load deals. Make sure the backend is running.");
-      console.error(err);
     } finally {
       setLoading(false);
+      DBG.groupEnd();
     }
   };
 
@@ -175,18 +231,71 @@ function HomePage() {
     const promise = (async () => {
       pollRef.current.abort = false;
       pollRef.current.jobId = jobId;
+      DBG.group(`pollUberJob(${jobId})`);
 
       for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        if (pollRef.current.abort) throw new Error("Polling cancelled");
-        const res = await dealsAPI.getUberEatsJob(jobId);
-        const data = res?.data ?? {};
+        if (pollRef.current.abort) {
+          DBG.warn("Polling cancelled at attempt", attempt);
+          DBG.groupEnd();
+          throw new Error("Polling cancelled");
+        }
+
+        let res, data;
+        try {
+          res = await dealsAPI.getUberEatsJob(jobId);
+          data = res?.data ?? {};
+        } catch (pollErr) {
+          DBG.error(`Poll attempt ${attempt + 1} HTTP error →`, pollErr?.response?.status, pollErr?.response?.data, pollErr?.message);
+          await new Promise((r) => setTimeout(r, intervalMs));
+          continue;
+        }
+
+        const prog = data?.progress ?? {};
+        DBG.event(`poll_${attempt + 1}`, {
+          attempt: attempt + 1,
+          status: data.status,
+          stage: prog.stage,
+          finding_stores_done: prog.finding_stores_done,
+          finding_stores_total: prog.finding_stores_total,
+          completed: prog.completed,
+          failed: prog.failed,
+          total_stores: prog.total_stores,
+          ranked_deals: data.ranked_deals?.length ?? null,
+          unranked_deals: data.unranked_deals?.length ?? null,
+          error: data.error ?? null,
+          raw: data,
+        });
+
         setJobProgress((prev) => mergeJobProgress(prev, data));
 
         if (data.status && data.status !== "running" && data.status !== "queued") {
+          DBG.log(`Job finished with status="${data.status}" after ${attempt + 1} polls`);
+          if (data.status === "completed" || data.status === "partial") {
+            DBG.event("job_result_summary", {
+              ranked_deals: data.ranked_deals?.length ?? 0,
+              unranked_deals: data.unranked_deals?.length ?? 0,
+              stores_processed: data.stores_processed,
+              skipped: data.skipped,
+              first_3_ranked: (data.ranked_deals ?? []).slice(0, 3).map(d => ({
+                name: d.item_name ?? d.name,
+                restaurant: d.restaurant_name ?? d.restaurant,
+                price: d.price,
+                value_score: d.value_score,
+                calories: d.calories,
+              })),
+              first_3_unranked: (data.unranked_deals ?? []).slice(0, 3),
+            });
+          } else if (data.status === "failed") {
+            DBG.error("Job FAILED →", data.error, data);
+          }
+          DBG.groupEnd();
           return data;
         }
         await new Promise((r) => setTimeout(r, intervalMs));
       }
+
+      DBG.error("Timed out after", maxAttempts, "poll attempts for job", jobId);
+      DBG.groupEnd();
       throw new Error("Timed out waiting for Uber Eats job");
     })();
 
@@ -202,11 +311,22 @@ function HomePage() {
   };
 
   const startImport = async () => {
-    if (!location) return;
+    DBG.group("startImport()");
+    DBG.log("location →", location, "| lastScraped →", lastScrapedLocation, "| restaurants →", restaurants);
+
+    if (!location) {
+      DBG.warn("Aborted — no location set");
+      DBG.groupEnd();
+      return;
+    }
     if (location === lastScrapedLocation) {
+      DBG.log("Location unchanged — loading existing deals instead of re-scraping");
+      DBG.groupEnd();
       await loadDeals();
       return;
     }
+
+    DBG.event("scrape_start", { location, restaurants });
     setIsScraping(true);
     setDisplayPct(0);
     setJobProgress({
@@ -219,36 +339,59 @@ function HomePage() {
       finding_stores_done: 0,
       finding_stores_total: restaurants.length,
     });
+
     try {
+      DBG.log("POST /api/scrape/ubereats →", { location, restaurants });
       const resp = await dealsAPI.importUberEatsMenus({ location, restaurants });
+      DBG.event("scrape_enqueued", {
+        http_status: resp?.status,
+        job_id: resp?.data?.job_id,
+        status: resp?.data?.status,
+        full_response: resp?.data,
+      });
+
       const jobId = resp?.data?.job_id;
       const status = resp?.data?.status;
 
+      if (!jobId && !status) {
+        DBG.error("⚠️  Response had neither job_id nor status — unexpected shape:", resp?.data);
+      }
+
       if (status === "completed" || status === "partial") {
+        DBG.log("Synchronous completion (no polling needed), status =", status);
         await loadDeals();
         setIsScraping(false);
         setJobProgress((prev) => ({ ...prev, show: false }));
         setLastScrapedLocation(location);
         localStorage.setItem("lastScrapedLocation", location);
+        DBG.groupEnd();
         return;
       }
 
       if (jobId) {
+        DBG.log("Polling for job_id =", jobId);
         const jobResult = await pollUberJob(jobId);
         if (jobResult?.status && jobResult.status !== "running" && jobResult.status !== "queued") {
+          DBG.log("Poll complete, loading deals…");
           await loadDeals();
+        } else {
+          DBG.warn("Poll ended but status is still running/queued:", jobResult?.status);
         }
       } else {
+        DBG.warn("No job_id returned — falling back to immediate deal load");
         await loadDeals();
       }
+
       setLastScrapedLocation(location);
       localStorage.setItem("lastScrapedLocation", location);
     } catch (err) {
-      console.error("Failed to import Uber Eats menus:", err);
+      DBG.error("startImport() threw →", err?.response?.status, err?.response?.data, err?.message, err);
       setError("Failed to load deals. Please try refreshing.");
     } finally {
       setIsScraping(false);
       setJobProgress((prev) => ({ ...prev, show: false }));
+      DBG.event("scrape_flow_complete", { location });
+      DBG.groupEnd();
     }
   };
 
