@@ -20,7 +20,7 @@ const REST_COLORS = {
 
 function getScrapeStage(progress) {
   if (!progress) return 'Starting up…'
-  const { stage, finding_stores_done: done = 0, finding_stores_total: total = 3 } = progress
+  const { stage, finding_stores_done: done = 0, finding_stores_total: total = ALL_RESTAURANTS.length } = progress
   if (stage === 'finding_stores' || stage === 'starting') return `Finding nearby stores… (${done}/${total})`
   if (stage === 'scraping_menus') return 'Scraping live menus…'
   if (stage === 'finalizing') return 'Ranking deals…'
