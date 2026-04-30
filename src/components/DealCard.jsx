@@ -1,117 +1,175 @@
-function DealCard({ deal, rank, animationDelay = 0 }) {
-  const themeByRestaurant = {
-    "McDonald's": { primary: '#FFC72C', secondary: '#DA291C' },
-    "KFC":        { primary: '#E4002B', secondary: '#2C2A29' },
-    "Taco Bell":  { primary: '#702082', secondary: '#00A7E1' },
-  }
-  const theme = themeByRestaurant[deal.restaurant_name] || { primary: '#E85D54', secondary: '#FF9B54' }
+const RESTAURANT_THEMES = {
+  "McDonald's":  { color: '#DA291C', accent: '#FFC72C' },
+  "KFC":         { color: '#F40027', accent: '#2C2A29' },
+  "Taco Bell":   { color: '#702082', accent: '#00A7E1' },
+  "Burger King": { color: '#D62300', accent: '#F5EBDC' },
+  "Wendy's":     { color: '#E2231A', accent: '#1C4E9A' },
+  "Chick-fil-A": { color: '#E51636', accent: '#004F2D' },
+  "Subway":      { color: '#00833D', accent: '#FFC907' },
+  "Popeyes":     { color: '#E8671F', accent: '#FFC107' },
+}
 
-  const getScoreGradient = (score) => {
-    if (score >= 81) return 'linear-gradient(90deg, #1EAD5A, #2ECC71)'
-    if (score >= 61) return 'linear-gradient(90deg, #7BC043, #F1C40F)'
-    if (score >= 41) return 'linear-gradient(90deg, #F1C40F, #E67E22)'
-    if (score >= 21) return 'linear-gradient(90deg, #E67E22, #CC4E00)'
-    return 'linear-gradient(90deg, #CC4E00, #A61919)'
-  }
+function getScoreInfo(score) {
+  if (score >= 91) return { label: 'Elite',     cls: 'score-elite', bar: '#10b981' }
+  if (score >= 81) return { label: 'Excellent', cls: 'score-elite', bar: '#10b981' }
+  if (score >= 71) return { label: 'Great',     cls: 'score-great', bar: '#34d399' }
+  if (score >= 61) return { label: 'Good',      cls: 'score-good',  bar: '#fbbf24' }
+  if (score >= 51) return { label: 'Fair',      cls: 'score-fair',  bar: '#f59e0b' }
+  if (score >= 41) return { label: 'Average',   cls: 'score-below', bar: '#f97316' }
+  return                   { label: 'Poor',     cls: 'score-below', bar: '#ef4444' }
+}
 
-  const getScoreColor = (score) => {
-    if (score >= 81) return '#1EAD5A'
-    if (score >= 61) return '#7BC043'
-    if (score >= 41) return '#E67E22'
-    if (score >= 21) return '#CC4E00'
-    return '#A61919'
-  }
-
-  const getScoreLabel = (score) => {
-    if (score >= 91) return 'Elite'
-    if (score >= 81) return 'Excellent'
-    if (score >= 71) return 'Great'
-    if (score >= 61) return 'Good'
-    if (score >= 51) return 'Fair'
-    if (score >= 41) return 'Mixed'
-    if (score >= 31) return 'Below Avg'
-    if (score >= 21) return 'Poor'
-    return 'Bad'
-  }
-
+export function DealCard({ deal, rank, animationDelay = 0, onClick }) {
+  const theme = RESTAURANT_THEMES[deal.restaurant_name] || { color: '#E85D54', accent: '#FF9B54' }
   const score = deal.value_score ?? 0
-  const caloriesDisplay = (() => {
-    if (deal.calories_range_min && deal.calories_range_max) return `${deal.calories_range_min}–${deal.calories_range_max}`
-    if (deal.calories) return `${deal.calories}`
-    return null
-  })()
-  const proteinDisplay = deal.protein_grams > 0 ? `${Math.round(deal.protein_grams)}g` : null
+  const info = getScoreInfo(score)
+  const ppc = deal.price_per_calorie > 0
+    ? `${(deal.price_per_calorie * 100).toFixed(1)}¢/cal`
+    : null
 
   return (
     <div
-      className="surface-card overflow-hidden animate-fade-up"
-      style={{
-        borderColor: `${theme.primary}44`,
-        animationDelay: `${animationDelay}ms`,
-      }}
+      className="card fade-up cursor-pointer overflow-hidden"
+      style={{ animationDelay: `${animationDelay}ms`, borderLeft: `4px solid ${theme.color}` }}
+      onClick={onClick}
     >
-      {/* Rank + restaurant header */}
-      <div
-        className="px-5 py-3 flex items-center justify-between"
-        style={{ background: `linear-gradient(135deg, ${theme.primary}, ${theme.secondary})` }}
-      >
-        <span className="text-white font-black text-sm tracking-wide uppercase opacity-90">
-          {deal.restaurant_name}
-        </span>
-        {rank && (
-          <span className="text-white font-black text-lg leading-none">#{rank}</span>
-        )}
-      </div>
-
-      <div className="p-5">
-        {/* Name + price */}
-        <div className="flex justify-between items-start mb-3">
-          <h3 className="text-lg font-bold text-slate-900 leading-tight flex-1 mr-4">
-            {deal.item_name || deal.name || 'Untitled item'}
-          </h3>
-          <span
-            className="text-2xl font-black whitespace-nowrap"
-            style={{ color: theme.primary }}
-          >
-            ${deal.price.toFixed(2)}
+      {/* Header row */}
+      <div className="px-4 pt-4 pb-2 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          {rank && (
+            <span
+              className="text-xs font-black text-white px-2 py-0.5 rounded-full"
+              style={{ background: rank === 1 ? 'linear-gradient(135deg,#f5a623,#F4B942)' : theme.color, color: rank === 1 ? '#1c1000' : '#fff' }}
+            >
+              #{rank}
+            </span>
+          )}
+          <span className="text-xs font-bold" style={{ color: theme.color }}>
+            {deal.restaurant_name}
           </span>
         </div>
+        <span className={`score-badge ${info.cls}`}>{info.label}</span>
+      </div>
 
-        {/* Description */}
-        {deal.description && (
-          <p className="text-slate-500 text-sm mb-3 leading-relaxed">{deal.description}</p>
-        )}
+      {/* Name + price */}
+      <div className="px-4 pb-2">
+        <h3 className="text-base font-bold leading-snug text-gray-900 mb-2 line-clamp-2">
+          {deal.item_name}
+        </h3>
+        <div className="flex items-end justify-between gap-2">
+          <span className="text-2xl font-black" style={{ color: theme.color }}>
+            ${deal.price.toFixed(2)}
+          </span>
+          {ppc && <span className="text-xs text-gray-400 font-medium mb-0.5">{ppc}</span>}
+        </div>
+      </div>
 
-        {/* Nutrition stats — plain text, no chips */}
-        {(caloriesDisplay || proteinDisplay) && (
-          <div className="flex items-center gap-3 text-sm text-slate-500 mb-4">
-            {caloriesDisplay && <span>🔥 {caloriesDisplay} cal</span>}
-            {caloriesDisplay && proteinDisplay && <span className="text-slate-300">·</span>}
-            {proteinDisplay && <span>💪 {proteinDisplay} protein</span>}
-          </div>
-        )}
-
-        {/* Score bar */}
-        <div className="pt-4 stat-divider">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Value Score</span>
-            <span
-              className="text-sm font-bold"
-              style={{ color: getScoreColor(score) }}
-            >
-              {score.toFixed(0)} · {getScoreLabel(score)}
+      {/* Nutrition */}
+      {(deal.calories || deal.protein_grams > 0) && (
+        <div className="px-4 pb-3 flex gap-1.5 overflow-hidden">
+          {deal.calories && (
+            <span className="stat-chip flex-shrink-0">
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
+              </svg>
+              {deal.calories} cal
             </span>
+          )}
+          {deal.protein_grams > 0 && (
+            <span className="stat-chip flex-shrink-0">
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+              {Math.round(deal.protein_grams)}g pro
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Score bar */}
+      <div className="px-4 pb-4">
+        <div className="score-bar-track">
+          <div className="score-bar-fill" style={{ width: `${Math.min(100, score)}%`, background: `linear-gradient(90deg, ${theme.color}cc, ${info.bar})` }} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export function HeroDealCard({ deal, onClick }) {
+  const theme = RESTAURANT_THEMES[deal.restaurant_name] || { color: '#E85D54', accent: '#FF9B54' }
+  const score = deal.value_score ?? 0
+  const info = getScoreInfo(score)
+  const ppc = deal.price_per_calorie > 0
+    ? `${(deal.price_per_calorie * 100).toFixed(1)}¢/cal`
+    : null
+
+  return (
+    <div
+      className="card-hero fade-up cursor-pointer overflow-hidden relative"
+      style={{ borderLeft: `6px solid ${theme.color}` }}
+      onClick={onClick}
+    >
+      {/* Gradient wash background */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{ background: `linear-gradient(135deg, ${theme.color}10 0%, transparent 60%)` }}
+      />
+
+      {/* Top badge row */}
+      <div className="relative px-6 pt-5 pb-0 flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2.5">
+          <span className="text-xs font-black px-3 py-1.5 rounded-full tracking-wide"
+            style={{ background: 'linear-gradient(135deg,#f5a623,#F4B942)', color: '#1c1000', boxShadow: '0 2px 8px rgba(244,185,66,0.45)' }}>
+            🏆 #1 Best Value
+          </span>
+          <span className="text-xs font-bold uppercase tracking-wider" style={{ color: theme.color }}>
+            {deal.restaurant_name}
+          </span>
+        </div>
+        <span className={`score-badge ${info.cls}`}>{info.label} · {score.toFixed(0)}</span>
+      </div>
+
+      {/* Main content */}
+      <div className="relative px-6 pt-3 pb-6">
+        <div className="flex items-start justify-between gap-4 mb-3">
+          <h2 className="text-2xl sm:text-3xl font-black text-gray-900 leading-tight flex-1">
+            {deal.item_name}
+          </h2>
+          <div className="text-right flex-shrink-0">
+            <div className="text-3xl font-black" style={{ color: theme.color }}>
+              ${deal.price.toFixed(2)}
+            </div>
+            {ppc && <div className="text-xs text-gray-400 font-medium mt-0.5">{ppc}</div>}
           </div>
-          <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-            <div
-              className="h-full rounded-full"
-              style={{
-                width: `${Math.min(100, score)}%`,
-                background: getScoreGradient(score),
-                transition: 'width 0.7s ease-out',
-              }}
-            />
-          </div>
+        </div>
+
+        {deal.description && (
+          <p className="text-sm text-gray-500 mb-4 leading-relaxed line-clamp-2">{deal.description}</p>
+        )}
+
+        <div className="flex items-center gap-2 flex-wrap">
+          {deal.calories && (
+            <span className="stat-chip">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
+              </svg>
+              {deal.calories} cal
+            </span>
+          )}
+          {deal.protein_grams > 0 && (
+            <span className="stat-chip">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+              {Math.round(deal.protein_grams)}g protein
+            </span>
+          )}
+          <span className="text-xs text-gray-400 ml-auto hidden sm:block font-medium">Tap for details →</span>
+        </div>
+
+        <div className="mt-4 score-bar-track" style={{ height: '7px' }}>
+          <div className="score-bar-fill" style={{ width: `${Math.min(100, score)}%`, background: `linear-gradient(90deg, ${theme.color}, ${info.bar})` }} />
         </div>
       </div>
     </div>

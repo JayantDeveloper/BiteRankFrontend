@@ -18,11 +18,7 @@ function AdminPage({ onLogout }) {
   })
   const pollRef = useRef({ jobId: null, promise: null, abort: false })
   const supportedUberRestaurants = useMemo(
-    () => [
-      "McDonald's",
-      'KFC',
-      'Taco Bell',
-    ],
+    () => ["McDonald's", 'KFC', 'Taco Bell', 'Burger King', "Wendy's", 'Chick-fil-A', 'Subway', 'Popeyes'],
     []
   )
   const [formData, setFormData] = useState({
@@ -316,11 +312,19 @@ function AdminPage({ onLogout }) {
         </div>
       )}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="mb-12">
-          <h1 className="text-4xl font-black text-white mb-2">
-            Admin <span className="gradient-text">Panel</span>
-          </h1>
-          <p className="text-gray-400">Manually add deals or import Uber Eats menus</p>
+        <div className="mb-12 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-4xl font-black text-white mb-2">
+              Admin <span className="gradient-text">Panel</span>
+            </h1>
+            <p className="text-gray-400">Manually add deals or import Uber Eats menus</p>
+          </div>
+          <button
+            onClick={onLogout}
+            className="flex-shrink-0 text-sm font-semibold text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 border border-gray-700 px-4 py-2 rounded-xl transition-all"
+          >
+            Sign out
+          </button>
         </div>
 
         {/* Add Deal Form */}
@@ -539,7 +543,7 @@ function AdminPage({ onLogout }) {
             <button
               onClick={handleUberEatsImport}
               disabled={importingUber || !userLocation}
-              className="btn-gradient-blue text-white px-8 py-4 rounded-lg font-bold btn-glow hover:shadow-lg hover:shadow-sky-500/40 transition-all duration-300 disabled:cursor-not-allowed flex items-center space-x-2"
+              className="btn-gradient-primary text-white px-8 py-4 rounded-lg font-bold btn-glow hover:opacity-90 transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-50 flex items-center space-x-2"
             >
               <svg className={`w-5 h-5 ${importingUber ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8h6l2-3h6a2 2 0 012 2v2m-1 5H9l-2 3H4a2 2 0 01-2-2v-2m9-7v12" />

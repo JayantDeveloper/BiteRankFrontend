@@ -1,47 +1,41 @@
-import axios from "axios";
+import axios from 'axios'
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:8000/api";
-
-const SCRAPE_API_KEY = import.meta.env.VITE_SCRAPE_API_KEY || ''
+const BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
 
 const api = axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
-    "Content-Type": "application/json",
-    ...(SCRAPE_API_KEY ? { "X-API-Key": SCRAPE_API_KEY } : {}),
-  },
-});
+  baseURL: BASE,
+  headers: { 'Content-Type': 'application/json' },
+})
+
+// Attach auth token when available
+api.interceptors.request.use(config => {
+  const token = sessionStorage.getItem('admin_token')
+  if (token) config.headers['Authorization'] = `Bearer ${token}`
+  return config
+})
 
 export const dealsAPI = {
-  getDeals: (params = {}) => api.get("/deals", { params }),
+  getDeals:           (params = {}) => api.get('/deals', { params }),
+  getTopDeals:        (limit = 10)  => api.get('/deals/top', { params: { limit } }),
+  getDeal:            (id)          => api.get(`/deals/${id}`),
+  createDeal:         (data)        => api.post('/deals', data),
+  updateDeal:         (id, data)    => api.put(`/deals/${id}`, data),
+  deleteDeal:         (id)          => api.delete(`/deals/${id}`),
+  rankDeal:           (id)          => api.post(`/deals/${id}/rank`),
+  rankAllDeals:       ()            => api.post('/deals/rank-all'),
 
-  getTopDeals: (limit = 10) => api.get("/deals/top", { params: { limit } }),
+  importUberEatsMenus: (payload)    => api.post('/scrape/ubereats', payload),
+  getUberEatsJob:      (jobId)      => api.get(`/scrape/ubereats/jobs/${jobId}`),
 
-  getDeal: (id) => api.get(`/deals/${id}`),
+  suggestLocations:    (query, limit = 6) => api.get('/locations/suggest', { params: { query, limit } }),
+  getRestaurants:      ()           => api.get('/restaurants'),
+  getCategories:       ()           => api.get('/categories'),
 
-  createDeal: (dealData) => api.post("/deals", dealData),
+  scrapeStatus:        ()           => api.get('/debug/scrape-status'),
+}
 
-  updateDeal: (id, dealData) => api.put(`/deals/${id}`, dealData),
+export const authAPI = {
+  login: (username, password) => api.post('/auth/login', { username, password }),
+}
 
-  deleteDeal: (id) => api.delete(`/deals/${id}`),
-
-  rankDeal: (id) => api.post(`/deals/${id}/rank`),
-
-  rankAllDeals: () => api.post("/deals/rank-all"),
-
-  importScrapedMenus: (params = {}) =>
-    api.post("/scrape/import", null, { params }),
-
-  importUberEatsMenus: (payload) => api.post("/scrape/ubereats", payload),
-  getUberEatsJob: (jobId) => api.get(`/scrape/ubereats/jobs/${jobId}`),
-
-  suggestLocations: (query, limit = 5) =>
-    api.get("/locations/suggest", { params: { query, limit } }),
-
-  getRestaurants: () => api.get("/restaurants"),
-
-  getCategories: () => api.get("/categories"),
-};
-
-export default api;
+export default api
