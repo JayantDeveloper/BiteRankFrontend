@@ -19,7 +19,7 @@ function getScoreInfo(score) {
   return                   { label: 'Poor',     cls: 'score-below', bar: '#ef4444' }
 }
 
-export function DealCard({ deal, rank, animationDelay = 0, onClick }) {
+export function DealCard({ deal, rank, onClick }) {
   const theme = RESTAURANT_THEMES[deal.restaurant_name] || { color: '#E85D54', accent: '#FF9B54' }
   const score = deal.value_score ?? 0
   const info = getScoreInfo(score)
@@ -29,8 +29,8 @@ export function DealCard({ deal, rank, animationDelay = 0, onClick }) {
 
   return (
     <div
-      className="card fade-up cursor-pointer overflow-hidden"
-      style={{ animationDelay: `${animationDelay}ms`, borderLeft: `4px solid ${theme.color}` }}
+      className="card h-full cursor-pointer overflow-hidden"
+      style={{ borderLeft: `4px solid ${theme.color}` }}
       onClick={onClick}
     >
       {/* Header row */}
@@ -106,7 +106,7 @@ export function HeroDealCard({ deal, onClick }) {
 
   return (
     <div
-      className="card-hero fade-up cursor-pointer overflow-hidden relative"
+      className="card-hero cursor-pointer overflow-hidden relative"
       style={{ borderLeft: `6px solid ${theme.color}` }}
       onClick={onClick}
     >

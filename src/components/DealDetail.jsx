@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { m } from 'framer-motion'
 
 const RESTAURANT_THEMES = {
   "McDonald's":  { color: '#DA291C', accent: '#FFC72C' },
@@ -20,7 +21,13 @@ function ScoreRow({ label, value, max = 100, color }) {
         <span className="text-sm font-bold" style={{ color }}>{value.toFixed(1)}</span>
       </div>
       <div className="score-bar-track">
-        <div className="score-bar-fill" style={{ width: `${pct}%`, background: color }} />
+        <m.div
+          className="score-bar-fill"
+          style={{ background: color }}
+          initial={{ width: 0 }}
+          animate={{ width: `${pct}%` }}
+          transition={{ duration: 0.7, delay: 0.25, ease: [0.22, 1, 0.36, 1] }}
+        />
       </div>
     </div>
   )
@@ -48,8 +55,21 @@ export default function DealDetail({ deal, onClose }) {
 
   return (
     <>
-      <div className="overlay-bg" onClick={onClose} />
-      <div className="slide-over">
+      <m.div
+        className="overlay-bg"
+        onClick={onClose}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.2 }}
+      />
+      <m.div
+        className="slide-over"
+        initial={{ x: '100%' }}
+        animate={{ x: 0 }}
+        exit={{ x: '100%' }}
+        transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+      >
         {/* Header */}
         <div
           className="sticky top-0 z-10 px-6 py-5 flex items-start justify-between gap-4"
@@ -154,7 +174,7 @@ export default function DealDetail({ deal, onClose }) {
             </div>
           </div>
         </div>
-      </div>
+      </m.div>
     </>
   )
 }

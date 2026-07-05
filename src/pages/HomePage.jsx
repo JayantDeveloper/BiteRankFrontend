@@ -1,4 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
+import { LazyMotion, m, AnimatePresence } from 'framer-motion'
+
+const loadMotionFeatures = () => import('../motionFeatures').then(mod => mod.default)
 import { dealsAPI } from '../services/api'
 import { DealCard, HeroDealCard } from '../components/DealCard'
 import DealDetail from '../components/DealDetail'
@@ -189,6 +192,7 @@ export default function HomePage() {
     : null
 
   return (
+    <LazyMotion features={loadMotionFeatures} strict>
     <div className="hero-bg min-h-screen">
 
       {/* ─── Page header ─────────────────────────────────────────────── */}
@@ -342,17 +346,33 @@ export default function HomePage() {
             </div>
 
             {hero && (
-              <div className="mb-6">
+              <m.div
+                className="mb-6"
+                layout
+                initial={{ opacity: 0, y: 28 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ type: 'spring', stiffness: 240, damping: 26 }}
+              >
                 <HeroDealCard deal={hero} onClick={() => setSelectedDeal(hero)} />
-              </div>
+              </m.div>
             )}
 
             {restDeals.length > 0 && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {restDeals.map((deal, i) => (
-                  <DealCard key={deal.id} deal={deal} rank={i + 2}
-                    animationDelay={(i + 1) * 45} onClick={() => setSelectedDeal(deal)} />
-                ))}
+                <AnimatePresence mode="popLayout">
+                  {restDeals.map((deal, i) => (
+                    <m.div
+                      key={deal.id}
+                      layout
+                      initial={{ opacity: 0, y: 24 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.96 }}
+                      transition={{ type: 'spring', stiffness: 260, damping: 28, delay: Math.min(i * 0.04, 0.5) }}
+                    >
+                      <DealCard deal={deal} rank={i + 2} onClick={() => setSelectedDeal(deal)} />
+                    </m.div>
+                  ))}
+                </AnimatePresence>
               </div>
             )}
 
@@ -387,7 +407,10 @@ export default function HomePage() {
         )}
       </div>
 
-      {selectedDeal && <DealDetail deal={selectedDeal} onClose={() => setSelectedDeal(null)} />}
+      <AnimatePresence>
+        {selectedDeal && <DealDetail key="deal-detail" deal={selectedDeal} onClose={() => setSelectedDeal(null)} />}
+      </AnimatePresence>
     </div>
+    </LazyMotion>
   )
 }
