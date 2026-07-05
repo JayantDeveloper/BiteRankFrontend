@@ -7,6 +7,8 @@ function AdminPage({ onLogout }) {
   const [deals, setDeals] = useState([])
   const [loading, setLoading] = useState(true)
   const [importingUber, setImportingUber] = useState(false)
+  const [confirmingImport, setConfirmingImport] = useState(false)
+  const [banner, setBanner] = useState(null) // { type: 'success' | 'error', message }
   const [dealSort, setDealSort] = useState('value_desc')
   const [jobProgress, setJobProgress] = useState({
     show: false,
@@ -44,7 +46,7 @@ function AdminPage({ onLogout }) {
       setDeals(Array.isArray(response.data) ? response.data : [])
     } catch (err) {
       console.error('Failed to load deals:', err)
-      alert('Failed to load deals')
+      setBanner({ type: 'error', message: 'Failed to load deals.' })
     } finally {
       setLoading(false)
     }
@@ -78,7 +80,7 @@ function AdminPage({ onLogout }) {
       }
 
       await dealsAPI.createDeal(payload)
-      alert('Deal created successfully!')
+      setBanner({ type: 'success', message: `Deal created: ${payload.item_name} at ${payload.restaurant_name}.` })
       setFormData({
         restaurant_name: '',
         item_name: '',
@@ -93,7 +95,7 @@ function AdminPage({ onLogout }) {
       loadDeals()
     } catch (err) {
       console.error('Failed to create deal:', err)
-      alert('Failed to create deal')
+      setBanner({ type: 'error', message: 'Failed to create deal.' })
     }
   }
 
@@ -194,20 +196,19 @@ function AdminPage({ onLogout }) {
     return pollRef.current.promise
   }
 
-  const handleUberEatsImport = async () => {
+  const requestUberEatsImport = () => {
     if (importingUber) return
     if (!userLocation) {
-      alert('Set your location first so we know which market to price.')
+      setBanner({ type: 'error', message: 'Set your location first so we know which market to price.' })
       return
     }
+    setBanner(null)
+    setConfirmingImport(true)
+  }
 
-    const restaurantListDisplay = supportedUberRestaurants.join(', ')
-    if (
-      !confirm(
-        `Import Uber Eats pricing for ${restaurantListDisplay} near ${userLocation}?`
-      )
-    )
-      return
+  const handleUberEatsImport = async () => {
+    setConfirmingImport(false)
+    if (importingUber || !userLocation) return
 
     try {
       setImportingUber(true)
@@ -241,13 +242,14 @@ function AdminPage({ onLogout }) {
       const inferredStatus =
         completedStores === totalStores && failedStores === 0 ? 'completed' : jobResult.status || 'unknown'
 
-      alert(
-        `Uber Eats import ${inferredStatus}.\nStores attempted: ${totalStores}\nCompleted: ${completedStores}\nFailed: ${failedStores}\nRanked deals: ${ranked}\nUnranked: ${skipped}`
-      )
+      setBanner({
+        type: failedStores > 0 && completedStores === 0 ? 'error' : 'success',
+        message: `Uber Eats import ${inferredStatus} — ${completedStores}/${totalStores} stores completed (${failedStores} failed), ${ranked} deals ranked, ${skipped} unranked.`,
+      })
       loadDeals()
     } catch (err) {
       console.error('Failed to import Uber Eats menus:', err)
-      alert('Failed to import Uber Eats menus')
+      setBanner({ type: 'error', message: 'Failed to import Uber Eats menus.' })
     } finally {
       setImportingUber(false)
       setJobProgress({ show: false, completed: 0, failed: 0, total: 0, status: 'done', stage: 'idle' })
@@ -326,6 +328,26 @@ function AdminPage({ onLogout }) {
             Sign out
           </button>
         </div>
+
+        {banner && (
+          <div
+            className={`mb-8 flex items-start justify-between gap-4 rounded-xl border px-5 py-4 text-sm ${
+              banner.type === 'success'
+                ? 'bg-green-950/40 border-green-700/50 text-green-300'
+                : 'bg-red-950/40 border-red-700/50 text-red-300'
+            }`}
+            role="status"
+          >
+            <span>{banner.message}</span>
+            <button
+              onClick={() => setBanner(null)}
+              className="flex-shrink-0 font-bold opacity-70 hover:opacity-100 transition-opacity"
+              aria-label="Dismiss"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         {/* Add Deal Form */}
         <div className="bg-[#1a0f0d] rounded-xl border border-gray-900 p-8 mb-8 hover:border-[#b45343] hover:border-opacity-30 transition-all duration-300">
@@ -539,18 +561,41 @@ function AdminPage({ onLogout }) {
             )}
           </div>
 
-          <div className="flex flex-wrap gap-4">
-            <button
-              onClick={handleUberEatsImport}
-              disabled={importingUber || !userLocation}
-              className="btn-gradient-primary text-white px-8 py-4 rounded-lg font-bold btn-glow hover:opacity-90 transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-50 flex items-center space-x-2"
-            >
-              <svg className={`w-5 h-5 ${importingUber ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8h6l2-3h6a2 2 0 012 2v2m-1 5H9l-2 3H4a2 2 0 01-2-2v-2m9-7v12" />
-              </svg>
-              <span>{importingUber ? 'Importing from Uber Eats…' : 'Import Uber Eats Prices'}</span>
-            </button>
-          </div>
+          {confirmingImport ? (
+            <div className="bg-[#1a0f0d] border border-[#b45343]/40 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+              <p className="text-sm text-gray-300 flex-1">
+                Import Uber Eats pricing for <span className="font-bold text-white">{supportedUberRestaurants.join(', ')}</span> near{' '}
+                <span className="font-bold text-white">{userLocation}</span>?
+              </p>
+              <div className="flex gap-3 flex-shrink-0">
+                <button
+                  onClick={handleUberEatsImport}
+                  className="btn-gradient-primary text-white px-6 py-2.5 rounded-lg font-bold transition-all"
+                >
+                  Confirm import
+                </button>
+                <button
+                  onClick={() => setConfirmingImport(false)}
+                  className="text-sm font-semibold text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 border border-gray-700 px-5 py-2.5 rounded-lg transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-4">
+              <button
+                onClick={requestUberEatsImport}
+                disabled={importingUber || !userLocation}
+                className="btn-gradient-primary text-white px-8 py-4 rounded-lg font-bold btn-glow hover:opacity-90 transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-50 flex items-center space-x-2"
+              >
+                <svg className={`w-5 h-5 ${importingUber ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8h6l2-3h6a2 2 0 012 2v2m-1 5H9l-2 3H4a2 2 0 01-2-2v-2m9-7v12" />
+                </svg>
+                <span>{importingUber ? 'Importing from Uber Eats…' : 'Import Uber Eats Prices'}</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Deals Table */}

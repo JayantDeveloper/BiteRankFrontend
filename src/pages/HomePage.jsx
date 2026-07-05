@@ -7,11 +7,23 @@ import { useLocation } from '../contexts/LocationContext'
 const ALL_RESTAURANTS = ["McDonald's", 'KFC', 'Taco Bell', 'Burger King', "Wendy's", 'Chick-fil-A', 'Subway', 'Popeyes']
 
 const SORT_OPTIONS = [
-  { value: 'value_score',       label: 'Best Value'   },
-  { value: 'price',             label: 'Lowest Price' },
-  { value: 'price_per_calorie', label: 'Best $/Cal'   },
-  { value: 'protein_grams',     label: 'Most Protein' },
+  { value: 'value_score',       label: 'Best Value'     },
+  { value: 'price',             label: 'Lowest Price'   },
+  { value: 'price_per_calorie', label: 'Best $/Cal'     },
+  { value: 'price_per_protein', label: 'Best $/Protein' },
+  { value: 'protein_grams',     label: 'Most Protein'   },
 ]
+
+// Deals older than this are considered stale and trigger a re-scrape
+// (matches the backend's ubereats_cache_ttl_seconds of 4 hours).
+const STALE_AFTER_MS = 4 * 60 * 60 * 1000
+
+function hasFreshScrapedDeals(list) {
+  const scraped = (list || []).filter(d => d.deal_type === 'Uber Eats Menu')
+  if (!scraped.length) return false
+  const newest = Math.max(...scraped.map(d => Date.parse(d.created_at) || 0))
+  return Date.now() - newest < STALE_AFTER_MS
+}
 
 const REST_COLORS = {
   "McDonald's": '#DA291C', 'KFC': '#F40027', 'Taco Bell': '#702082',
@@ -84,8 +96,7 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!location) return
-    if (location === lastScrapedLocation) { loadDeals(); return }
-    startImport()
+    refreshForLocation()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location])
 
@@ -101,13 +112,27 @@ export default function HomePage() {
       const params = { limit: 20, sort_by: sortBy }
       if (selectedRest) params.restaurant = selectedRest
       const { data } = await dealsAPI.getDeals(params)
-      setDeals(Array.isArray(data) ? data : [])
+      const list = Array.isArray(data) ? data : []
+      setDeals(list)
       setFetchedAt(Date.now())
       setError(null)
+      return list
     } catch {
       setError('Failed to load deals. Make sure the backend is running.')
+      return null
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Load whatever the DB has first; re-scrape when the location changed OR the
+  // scraped data is stale/missing (e.g. the server DB was reset). Fixes the
+  // case where localStorage says "already scraped" but the backend has nothing.
+  async function refreshForLocation() {
+    const list = await loadDeals()
+    if (list === null) return
+    if (location !== lastScrapedLocation || !hasFreshScrapedDeals(list)) {
+      startImport(true)
     }
   }
 
@@ -126,9 +151,9 @@ export default function HomePage() {
     }
   }
 
-  async function startImport() {
+  async function startImport(force = false) {
     if (!location) return
-    if (location === lastScrapedLocation) { await loadDeals(); return }
+    if (!force && location === lastScrapedLocation) { await loadDeals(); return }
     setIsScraping(true)
     setDisplayPct(0)
     setJobProgress({ stage: 'starting', finding_stores_done: 0, finding_stores_total: ALL_RESTAURANTS.length })
@@ -215,7 +240,7 @@ export default function HomePage() {
               {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
             <button
-              onClick={startImport}
+              onClick={() => startImport(true)}
               disabled={isScraping || !location}
               className="btn-primary px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-1.5 flex-shrink-0"
             >
@@ -299,7 +324,7 @@ export default function HomePage() {
             <div className="text-5xl mb-4">🍔</div>
             <h3 className="text-lg font-bold text-gray-700 mb-1">No deals found</h3>
             <p className="text-gray-400 text-sm mb-6">Hit Refresh to scan Uber Eats near <strong>{location}</strong>.</p>
-            <button onClick={startImport} className="btn-primary px-6 py-2.5 rounded-xl font-bold text-sm">Scan Now</button>
+            <button onClick={() => startImport(true)} className="btn-primary px-6 py-2.5 rounded-xl font-bold text-sm">Scan Now</button>
           </div>
         )}
 
